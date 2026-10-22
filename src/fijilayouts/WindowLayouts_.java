@@ -439,15 +439,35 @@ final class Engine {
 		return o instanceof Rectangle ? (Rectangle) o : null;
 	}
 
-	/** Removes the band the Side Toolbar takes along the left or right edge of the area. */
+	/** Every band the Side Toolbar plugin takes (its toolbar, side columns, bars at the bottom or top). */
+	@SuppressWarnings("unchecked")
+	static List<Rectangle> sideToolbarBands() {
+		List<Rectangle> l = new ArrayList<Rectangle>();
+		Object all = System.getProperties().get("sidetoolbar.reservedAll");
+		if (all instanceof List) for (Object o : (List<Object>) all) if (o instanceof Rectangle) l.add((Rectangle) o);
+		Rectangle one = sideToolbar();
+		if (l.isEmpty() && one != null) l.add(one);
+		return l;
+	}
+
+	/**
+	 * Removes the bands the Side Toolbar takes (its toolbar, side columns, bars at the bottom or top) from the area:
+	 * a tall band from the side it is nearer to, a wide band from the top or the bottom.
+	 */
 	static Rectangle withoutSideToolbar(Rectangle u) {
-		Rectangle s = sideToolbar();
-		if (s == null || !s.intersects(u)) return u;
-		if (s.x <= u.x) {
-			int cut = Math.min(u.width, s.x + s.width - u.x);
-			return new Rectangle(u.x + cut, u.y, u.width - cut, u.height);
+		int left = u.x, right = u.x + u.width, top = u.y, bottom = u.y + u.height;
+		for (Rectangle s : sideToolbarBands()) {
+			if (!s.intersects(u)) continue;
+			boolean tall = s.height >= u.height / 2;
+			if (tall) {
+				if (s.x + s.width / 2 < u.x + u.width / 2) left = Math.max(left, s.x + s.width);
+				else right = Math.min(right, s.x);
+			} else {
+				if (s.y + s.height / 2 < u.y + u.height / 2) top = Math.max(top, s.y + s.height);
+				else bottom = Math.min(bottom, s.y);
+			}
 		}
-		return new Rectangle(u.x, u.y, Math.max(0, s.x - u.x), u.height);
+		return new Rectangle(left, top, Math.max(0, right - left), Math.max(0, bottom - top));
 	}
 
 	/**
@@ -459,8 +479,16 @@ final class Engine {
 		Frame ij = IJ.getInstance();
 		if (ij != null && d == primaryDevice()) {
 			int band = ij.getHeight() + GAP;
-			if (sideToolbar() != null && ij.getY() > u.y + u.height / 2)
-				return new Rectangle(u.x, u.y, u.width, u.height - band);
+			if (sideToolbar() != null) {
+				// the Side Toolbar placed the ImageJ window as a strip: remove it only where it covers the area
+				Rectangle ib = ij.getBounds();
+				if (!ib.intersects(u)) return u;
+				if (ib.y + ib.height / 2 < u.y + u.height / 2) {
+					int t = Math.min(u.y + u.height, ib.y + ib.height + GAP);
+					return new Rectangle(u.x, t, u.width, u.y + u.height - t);
+				}
+				return new Rectangle(u.x, u.y, u.width, Math.max(0, ib.y - u.y));
+			}
 			return new Rectangle(u.x, u.y + band, u.width, u.height - band);
 		}
 		return u;

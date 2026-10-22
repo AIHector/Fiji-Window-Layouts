@@ -46,8 +46,23 @@ public class LayoutTests {
 			eq(new Rectangle(0, 34, 1470, 902), Engine.withoutSideToolbar(u), "right bar removed");
 			System.getProperties().put("sidetoolbar.reserved", new Rectangle(-1512, 0, 42, 900));
 			eq(u, Engine.withoutSideToolbar(u), "bar on another display: area unchanged");
+			// toolbar + a column beside it + a bottom bar: all three bands are removed
+			System.getProperties().put("sidetoolbar.reserved", new Rectangle(0, 34, 40, 902));
+			java.util.List<Rectangle> all = new java.util.ArrayList<Rectangle>();
+			all.add(new Rectangle(0, 34, 40, 902));
+			all.add(new Rectangle(40, 34, 56, 902));
+			all.add(new Rectangle(96, 880, 1416, 56));
+			System.getProperties().put("sidetoolbar.reservedAll", all);
+			eq(new Rectangle(96, 34, 1416, 846), Engine.withoutSideToolbar(u), "toolbar, side column and bottom bar removed");
+			all.set(2, new Rectangle(96, 34, 1416, 56));
+			eq(new Rectangle(96, 90, 1416, 846), Engine.withoutSideToolbar(u), "a bar at the top is removed from the top");
+			all.set(2, new Rectangle(96, 89, 1416, 56)); // a top bar under the 55 px status strip
+			eq(new Rectangle(96, 145, 1416, 791), Engine.withoutSideToolbar(u), "a top bar below the status strip: the area starts under it");
+			all.set(2, new Rectangle(1456, 34, 56, 902)); // a column at the right edge
+			eq(new Rectangle(96, 34, 1360, 902), Engine.withoutSideToolbar(u), "a column at the right edge is removed from the right");
 		} finally {
 			System.getProperties().remove("sidetoolbar.reserved");
+			System.getProperties().remove("sidetoolbar.reservedAll");
 		}
 	}
 
