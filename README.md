@@ -26,12 +26,12 @@ The plugin is already installed in `/Applications/Fiji`. It consists of two file
 
 Without the AutoRun macro the menu commands still work, but the shortcuts and the automatic placement only start after you use one of the commands (or **Plugins ▸ Window Layouts ▸ Start Window Layouts**).
 
-To rebuild after editing the source, close Fiji and run:
+To build from the source, close Fiji and run:
 
 ```bash
 git clone https://github.com/AIHector/Fiji-Window-Layouts.git
 cd Fiji-Window-Layouts
-./test.sh     # 519 headless unit tests
+./test.sh     # 540 headless unit tests
 ./build.sh    # compiles with Fiji's own Java and installs the jar
 ```
 
@@ -405,3 +405,8 @@ Everything below was tested on this Mac (Fiji 2.18.0 / ImageJ 1.54p, Java 21, ma
 | `docs/make_diagrams.py` | draws the layout diagrams in this guide |
 | `build.sh`, `test.sh` | build/install, unit tests |
 | `README.md`, `README.pdf` | this guide |
+| `LICENSE` | MIT License |
+
+# License
+
+MIT License, © 2026 Ettore Colombo. See [LICENSE](LICENSE).
