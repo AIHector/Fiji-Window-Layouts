@@ -339,6 +339,11 @@ public class LayoutTests {
 		eq(true, Engine.modifierMatches("alt+shift", false, true, true, false), "alt+shift");
 		eq(false, Engine.modifierMatches("alt+shift", false, true, false, false), "alt alone");
 		eq(false, Engine.modifierMatches("bogus", true, true, true, true), "unknown modifier never matches");
+		// AltGr (reported as Ctrl+Alt on Windows and Linux) types characters in text fields
+		eq(true, Engine.altGrInText(false, true, true, true), "Windows/Linux: Ctrl+Alt in a text field is left to the field");
+		eq(false, Engine.altGrInText(false, true, true, false), "Windows/Linux: Ctrl+Alt elsewhere is a shortcut");
+		eq(false, Engine.altGrInText(true, true, true, true), "macOS has no AltGr: Ctrl+Alt in a text field stays a shortcut");
+		eq(false, Engine.altGrInText(false, false, true, true), "Alt alone is not AltGr");
 	}
 
 	static void classification() {

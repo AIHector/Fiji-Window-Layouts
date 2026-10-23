@@ -1006,6 +1006,20 @@ final class Engine {
 
 	// ---------------------------------------------------------------- keyboard shortcuts
 
+	/**
+	 * On Windows and Linux the AltGr key is reported as Ctrl+Alt, and on many keyboards AltGr with a digit or a
+	 * letter types a character (@ # { [ on Spanish, Italian or German layouts). While a text field has the focus,
+	 * such a key belongs to the field, not to a shortcut.
+	 */
+	static boolean altGrInText(boolean mac, boolean ctrl, boolean alt, boolean textFocus) {
+		return !mac && ctrl && alt && textFocus;
+	}
+
+	static boolean focusInText() {
+		java.awt.Component f = java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
+		return f instanceof java.awt.TextComponent || f instanceof javax.swing.text.JTextComponent;
+	}
+
 	static boolean modifierMatches(KeyEvent e) {
 		return modifierMatches(modifier(), e.isControlDown(), e.isAltDown(), e.isShiftDown(), e.isMetaDown());
 	}
@@ -1068,6 +1082,7 @@ final class Engine {
 				+ " mods=" + KeyEvent.getModifiersExText(e.getModifiersEx())
 				+ " match=" + modifierMatches(e) + " action=" + actionFor(e.getKeyCode()));
 		if (e.getID() != KeyEvent.KEY_PRESSED || e.isConsumed() || !modifierMatches(e)) return;
+		if (altGrInText(IJ.isMacOSX(), e.isControlDown(), e.isAltDown(), focusInText())) return;
 		String action = actionFor(e.getKeyCode());
 		if (action == null) return;
 		e.consume();

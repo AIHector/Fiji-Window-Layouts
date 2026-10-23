@@ -7,6 +7,7 @@
   <img alt="Java 8 or later" src="https://img.shields.io/badge/Java-8%2B-e76f00">
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-2ea043"></a>
   <img alt="Developed on macOS" src="https://img.shields.io/badge/developed%20on-macOS-555555">
+  <img alt="Windows and Linux: not yet tested" src="https://img.shields.io/badge/Windows%20%26%20Linux-not%20yet%20tested-lightgrey">
 </p>
 
 <p align="center">
@@ -28,7 +29,7 @@ Fiji opens every window wherever it likes, so a working session starts with drag
 
 | Feature | What you get |
 |---|---|
-| **Ten layouts, one key each** | **Cmd+Option+0** to **9** re-arranges every Fiji window at once |
+| **Ten layouts, one key each** | **Cmd+Option+0** to **9** on macOS, **Ctrl+Alt+0** to **9** on Windows and Linux, re-arranges every Fiji window at once |
 | **Automatic placement** | images and tool windows go to their place in the active layout as soon as they open; images are tiled and zoomed to fill their area |
 | **Six designs to start from** | balanced, image first, analysis bench, side-by-side comparison, neuron tracing, two displays |
 | **Save exactly what you see** | arrange the windows by hand and save the arrangement: every position, size and image zoom comes back |
@@ -40,14 +41,28 @@ Fiji opens every window wherever it likes, so a working session starts with drag
 
 1. Install the two files (see [Installation](#installation)) and restart Fiji.
 2. Open some images and tool windows (ROI Manager, B&C, Results): they go to their places in layout 1.
-3. Press **Cmd+Option+2**, **3**, ... to try the other layouts.
-4. Click an image and press **Cmd+Option+←** to snap it to the left half; **Cmd+Option+Delete** puts it back.
+3. Press **Cmd+Option+2**, **3**, ... (**Ctrl+Alt+2**, **3**, ... on Windows and Linux) to try the other layouts.
+4. Click an image and press **Cmd+Option+←** to snap it to the left half; **Cmd+Option+Delete** puts it back (on Windows and Linux: **Ctrl+Alt+←** and **Ctrl+Alt+Backspace**).
 5. Arrange the windows the way you like and choose **Plugins ▸ Window Layouts ▸ Save Current Arrangement...** to keep it in any slot.
 6. **Plugins ▸ Window Layouts ▸ Window Layouts Shortcuts** shows every shortcut inside Fiji.
+
+### On Windows and Linux
+
+The shortcuts in this guide are written for macOS. On Windows and Linux the plugin uses **Ctrl+Alt** instead of **Cmd+Option**, by itself:
+
+| macOS | Windows and Linux |
+|---|---|
+| **Cmd+Option** + key | **Ctrl+Alt** + key |
+| **Cmd+Option+Delete** (back to where it was) | **Ctrl+Alt+Backspace** (Ctrl+Alt+Delete belongs to the system) |
+
+- **AltGr keeps typing.** Windows and Linux report the AltGr key as Ctrl+Alt, and on many keyboards AltGr with a digit or a letter types a character (@, #, {, [). While a text field has the focus (a dialog, the macro editor, the Log), Ctrl+Alt+key is therefore left to the field. Click an image or a tool window to use the shortcuts.
+- **If your system already uses Ctrl+Alt.** Some graphics drivers on Windows rotate the screen with Ctrl+Alt+arrows; Linux desktops use Ctrl+Alt with the arrows (workspaces), T (terminal) or L (lock). Such keys never reach Fiji. Choose another pair, for example **Alt+Shift**, in *Plugins ▸ Window Layouts ▸ Window Layouts Preferences...*; *Window Layouts Shortcuts* always lists the keys in use.
 
 ## Three plugins that work together
 
 Each plugin works on its own; installed together, they share the screen and each other's commands.
+
+All three are written in Java 8 for any system Fiji runs on, and their shortcuts follow your system: **Cmd** on macOS, **Ctrl** on Windows and Linux. So far they have been tested on macOS only; reports from Windows and Linux are welcome in each repository's *Issues*.
 
 | Plugin | What it gives you |
 |---|---|
@@ -71,7 +86,7 @@ Everything is in the menu **Plugins ▸ Window Layouts**, and every setting is s
 
 ## Installation
 
-The plugin consists of two files in your Fiji folder (on macOS, `Fiji.app` or the folder that contains it):
+The plugin consists of two files in your Fiji folder (the one that contains `plugins/` and `macros/`: `Fiji.app` on Windows and Linux; on macOS, `Fiji.app` or the folder that contains it):
 
 - the plugin: `plugins/Fiji_Window_Layouts.jar`
 - the startup hook, which starts it when Fiji opens (`run("Start Window Layouts");`): `macros/AutoRun/Window_Layouts_Startup.ijm`
@@ -85,7 +100,7 @@ Without the AutoRun macro the menu commands still work, but the shortcuts and th
 ```bash
 git clone https://github.com/AIHector/Fiji-Window-Layouts.git
 cd Fiji-Window-Layouts
-./test.sh     # 540 headless unit tests
+./test.sh     # 544 headless unit tests
 ./build.sh    # compiles with Fiji's own Java and installs both files
 ```
 
@@ -262,7 +277,7 @@ Empty slots show `(empty)` in the slot lists. Pressing the shortcut of an empty 
 
 ## Keyboard shortcuts
 
-All shortcuts use the **modifier**: **Cmd+Option** by default on macOS. It can be changed in Preferences. Magnet uses Ctrl+Option and Ctrl+Option+Cmd, so the two never collide. The shortcuts work while any Fiji window is in front (image, toolbar, Results, ...), and they never reach other applications.
+All shortcuts use the **modifier**: **Cmd+Option** by default on macOS, **Ctrl+Alt** on Windows and Linux (see [On Windows and Linux](#on-windows-and-linux)). It can be changed in Preferences. Magnet uses Ctrl+Option and Ctrl+Option+Cmd, so the two never collide. The shortcuts work while any Fiji window is in front (image, toolbar, Results, ...), and they never reach other applications.
 
 | Modifier + | Action |
 |---|---|
