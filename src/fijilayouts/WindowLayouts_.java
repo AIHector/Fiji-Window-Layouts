@@ -496,6 +496,30 @@ final class Engine {
 
 	static Rectangle workArea(int display) { return workArea(deviceFor(display)); }
 
+	/**
+	 * A window the layout does not place (its kind has no zone, or the plugin does not know it) stays where it opened,
+	 * unless it lies under one of the Side Toolbar's bars or its status strip (the ImageJ window): then it moves into
+	 * the work area beside them, keeping its size when it fits.
+	 */
+	static void keepClear(Window w) {
+		boolean underBar = false;
+		for (Rectangle b : sideToolbarBands()) if (b.intersects(w.getBounds())) underBar = true;
+		ij.ImageJ ij = IJ.getInstance();
+		if (sideToolbar() != null && ij != null && w != ij && ij.isVisible() && ij.getBounds().intersects(w.getBounds())) underBar = true;
+		if (!underBar || w.getGraphicsConfiguration() == null) return;
+		Rectangle r = keptClear(w.getBounds(), workArea(w.getGraphicsConfiguration().getDevice()));
+		if (r != null) w.setBounds(r);
+	}
+
+	/** The bounds moved (and shrunk only if needed) to lie inside the area; null if they already do. */
+	static Rectangle keptClear(Rectangle b, Rectangle area) {
+		if (area.width <= 0 || area.height <= 0 || area.contains(b)) return null;
+		int w = Math.min(b.width, area.width), h = Math.min(b.height, area.height);
+		int x = Math.max(area.x, Math.min(b.x, area.x + area.width - w));
+		int y = Math.max(area.y, Math.min(b.y, area.y + area.height - h));
+		return new Rectangle(x, y, w, h);
+	}
+
 	static Rectangle toRect(Zone z) { return toRect(z, workArea(z.display)); }
 
 	/** Edges are rounded, not sizes, so zones that touch in percent also touch in pixels (no 1 px slivers). */
@@ -632,7 +656,7 @@ final class Engine {
 
 	static void placeTool(Window w, Group g, Layout l) {
 		Zone z = zoneOf(l, g);
-		if (z == null) return;
+		if (z == null) { keepClear(w); return; } // no zone in this layout: leave it where it is, but not under a bar
 		Rectangle r = toRect(z);
 		Point p = freeSpot(w, r.x, r.y);
 		int shift = p.x - r.x;
@@ -999,6 +1023,7 @@ final class Engine {
 			Group g = classify(w);
 			if (w instanceof ImageWindow || (g == null && !w.isVisible())) images = true;
 			else if (g != null && g != Group.TOOLBAR) placeTool(w, g, l);
+			else if (g == null && w.isVisible()) keepClear(w); // a window the plugin does not know: only out from under the bars
 		}
 		settle(l);
 		if (images) arrangeImages(l);

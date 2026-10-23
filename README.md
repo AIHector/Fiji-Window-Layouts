@@ -100,7 +100,7 @@ Without the AutoRun macro the menu commands still work, but the shortcuts and th
 ```bash
 git clone https://github.com/AIHector/Fiji-Window-Layouts.git
 cd Fiji-Window-Layouts
-./test.sh     # 544 headless unit tests
+./test.sh     # 549 headless unit tests
 ./build.sh    # compiles with Fiji's own Java and installs both files
 ```
 
@@ -110,7 +110,7 @@ To uninstall, delete the two files above.
 
 ## How windows are grouped
 
-A layout places *kinds* of windows. Anything not in this table is never moved.
+A layout places *kinds* of windows. A window whose kind has no zone in the active layout, or that is not in this table, stays where it opens, with one exception: if it opens under the Side Toolbar's bars or its status strip (Fiji's Console, for example), it moves just beside them, keeping its size when it fits.
 
 | Kind (name used in zones) | Windows |
 |---|---|

@@ -339,6 +339,13 @@ public class LayoutTests {
 		eq(true, Engine.modifierMatches("alt+shift", false, true, true, false), "alt+shift");
 		eq(false, Engine.modifierMatches("alt+shift", false, true, false, false), "alt alone");
 		eq(false, Engine.modifierMatches("bogus", true, true, true, true), "unknown modifier never matches");
+		// a window with no zone that opened under a bar moves beside it (the Console at the top-left corner)
+		java.awt.Rectangle area = new java.awt.Rectangle(40, 89, 1472, 791);
+		eq(new java.awt.Rectangle(40, 89, 640, 469), Engine.keptClear(new java.awt.Rectangle(0, 34, 640, 469), area), "console moved beside the bar and below the strip");
+		eq(null, Engine.keptClear(new java.awt.Rectangle(300, 200, 400, 300), area), "a window already clear stays put");
+		eq(new java.awt.Rectangle(40, 89, 1472, 791), Engine.keptClear(new java.awt.Rectangle(0, 0, 3000, 2000), area), "a window bigger than the area shrinks to fit");
+		eq(new java.awt.Rectangle(1112, 89, 400, 300), Engine.keptClear(new java.awt.Rectangle(1400, 50, 400, 300), area), "a window off the right edge comes back in");
+		eq(new java.awt.Rectangle(681, 89, 150, 271), Engine.keptClear(new java.awt.Rectangle(681, 34, 150, 271), area), "SNT Commands moves down from under the status strip, same x");
 		// AltGr (reported as Ctrl+Alt on Windows and Linux) types characters in text fields
 		eq(true, Engine.altGrInText(false, true, true, true), "Windows/Linux: Ctrl+Alt in a text field is left to the field");
 		eq(false, Engine.altGrInText(false, true, true, false), "Windows/Linux: Ctrl+Alt elsewhere is a shortcut");
