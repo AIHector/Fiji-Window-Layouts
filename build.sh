@@ -12,4 +12,6 @@ rm -rf "$HERE/build" && mkdir -p "$HERE/build/classes"
 cp "$HERE/src/plugins.config" "$HERE/build/classes/"
 "$JAVA_BIN/jar" cf "$HERE/build/Fiji_Window_Layouts.jar" -C "$HERE/build/classes" .
 cp "$HERE/build/Fiji_Window_Layouts.jar" "$FIJI/plugins/Fiji_Window_Layouts.jar"
-echo "Installed $FIJI/plugins/Fiji_Window_Layouts.jar - restart Fiji."
+mkdir -p "$FIJI/macros/AutoRun"
+cp "$HERE/src/Window_Layouts_Startup.ijm" "$FIJI/macros/AutoRun/Window_Layouts_Startup.ijm"
+echo "Installed $FIJI/plugins/Fiji_Window_Layouts.jar and macros/AutoRun/Window_Layouts_Startup.ijm - restart Fiji."

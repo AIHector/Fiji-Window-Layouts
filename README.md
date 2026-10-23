@@ -1,14 +1,67 @@
----
-title: "Fiji Window Layouts"
-subtitle: "Numbered window layouts, Magnet-style snapping and your own arrangements, inside Fiji"
-date: "15 October 2026"
----
+<h1 align="center">Fiji Window Layouts</h1>
 
-# What it does
+<p align="center"><b>Numbered window layouts, snap zones and exact saving of any arrangement, so that Fiji's windows are always where you want them.</b></p>
 
-Fiji opens every window wherever it likes, so you spend time dragging and resizing. **Window Layouts** places Fiji's windows for you:
+<p align="center">
+  <img alt="Tested with Fiji 2.18 / ImageJ 1.54p" src="https://img.shields.io/badge/tested%20with-Fiji%202.18%20%2F%20ImageJ%201.54p-1f6feb">
+  <img alt="Java 8 or later" src="https://img.shields.io/badge/Java-8%2B-e76f00">
+  <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-2ea043"></a>
+  <img alt="Developed on macOS" src="https://img.shields.io/badge/developed%20on-macOS-555555">
+</p>
 
-- **Ten layout slots, 0 to 9, all editable.** Slots 1 to 6 start with the six built-in designs you approved; slots 0, 7, 8 and 9 start empty. You can save over any slot at any time, and **Reset Layout...** brings a built-in design back.
+<p align="center">
+  <a href="#why">Why</a> ·
+  <a href="#highlights">Highlights</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#installation">Installation</a> ·
+  <a href="#the-built-in-layouts">Built-in layouts</a> ·
+  <a href="#menu-reference-plugins--window-layouts">Menu reference</a>
+</p>
+
+![Layout 1: images on the left, tool windows on the right](docs/layout1.png)
+
+## Why
+
+Fiji opens every window wherever it likes, so a working session starts with dragging and resizing: images on top of each other, the ROI Manager behind an image, the Results table off screen. **Window Layouts** places Fiji's windows for you as they open, and puts everything back in order with one keystroke.
+
+## Highlights
+
+| Feature | What you get |
+|---|---|
+| **Ten layouts, one key each** | **Cmd+Option+0** to **9** re-arranges every Fiji window at once |
+| **Automatic placement** | images and tool windows go to their place in the active layout as soon as they open; images are tiled and zoomed to fill their area |
+| **Six designs to start from** | balanced, image first, analysis bench, side-by-side comparison, neuron tracing, two displays |
+| **Save exactly what you see** | arrange the windows by hand and save the arrangement: every position, size and image zoom comes back |
+| **Snap zones** | send the active window to a half, a quarter, a third or two thirds of the screen, or to another display |
+| **Only Fiji's windows** | other applications are never moved |
+| **Scriptable** | every command works in macros, for example `run("Layout 3");` |
+
+## Quick start
+
+1. Install the two files (see [Installation](#installation)) and restart Fiji.
+2. Open some images and tool windows (ROI Manager, B&C, Results): they go to their places in layout 1.
+3. Press **Cmd+Option+2**, **3**, ... to try the other layouts.
+4. Click an image and press **Cmd+Option+←** to snap it to the left half; **Cmd+Option+Delete** puts it back.
+5. Arrange the windows the way you like and choose **Plugins ▸ Window Layouts ▸ Save Current Arrangement...** to keep it in any slot.
+6. **Plugins ▸ Window Layouts ▸ Window Layouts Shortcuts** shows every shortcut inside Fiji.
+
+## Three plugins that work together
+
+Each plugin works on its own; installed together, they share the screen and each other's commands.
+
+| Plugin | What it gives you |
+|---|---|
+| [**Side Toolbar**](https://github.com/AIHector/Fiji-Side-Toolbar) | Fiji's toolbar as a vertical bar you can reshape freely, plus a shelf for open tools, live image previews and macro buttons |
+| **Window Layouts** (this one) | Ten numbered window layouts, snap zones and exact saving of any arrangement, with a keyboard shortcut for each |
+| [**Undo History**](https://github.com/AIHector/Fiji-Undo-History) | Multi-level undo and redo with a history panel: pixels, selections, overlays, display, calibration, ROI Manager and Results |
+
+- **Window Layouts** keeps every layout clear of Side Toolbar's bars and status strip, and re-arranges the windows when a bar changes size or place.
+- **Side Toolbar**'s image previews offer Window Layouts' placements (halves, thirds, quarters, other display, layouts 0 to 9) and Undo History's steps in their right-click menu.
+- **Side Toolbar** adds an *Undo History* button to the bar when Undo History is installed, and **Window Layouts** places the Undo History window like any other tool window.
+
+## The layouts in detail
+
+- **Ten layout slots, 0 to 9, all editable.** Slots 1 to 6 start with six built-in designs; slots 0, 7, 8 and 9 start empty. You can save over any slot at any time, and **Reset Layout...** brings a built-in design back.
 - **Automatic placement.** Images and tool windows go to their place in the active layout as soon as they open. Images are tiled and zoomed to fill their area.
 - **A shortcut for each layout.** Press **Cmd+Option+0** to **9** at any moment to rearrange everything.
 - **Snap zones, like Magnet, but only for Fiji.** Send the active Fiji window to a half, quarter or third of the screen, or to another display.
@@ -16,38 +69,31 @@ Fiji opens every window wherever it likes, so you spend time dragging and resizi
 
 Everything is in the menu **Plugins ▸ Window Layouts**, and every setting is saved at once (it survives a crash or a forced quit).
 
-# Installation
+## Installation
 
-The plugin is already installed in `/Applications/Fiji`. It consists of two files:
+The plugin consists of two files in your Fiji folder (on macOS, `Fiji.app` or the folder that contains it):
 
-- the plugin: `/Applications/Fiji/plugins/Fiji_Window_Layouts.jar`
-- the startup hook, which starts it when Fiji opens (`run("Start Window Layouts");`):\
-  `/Applications/Fiji/macros/AutoRun/Window_Layouts_Startup.ijm`
+- the plugin: `plugins/Fiji_Window_Layouts.jar`
+- the startup hook, which starts it when Fiji opens (`run("Start Window Layouts");`): `macros/AutoRun/Window_Layouts_Startup.ijm`
+
+**From a release.** Download `Window_Layouts-<version>.zip` from the [Releases](../../releases) page, unzip it, copy the two files to those places, and restart Fiji.
 
 Without the AutoRun macro the menu commands still work, but the shortcuts and the automatic placement only start after you use one of the commands (or **Plugins ▸ Window Layouts ▸ Start Window Layouts**).
 
-To build from the source, close Fiji and run:
+**From the source** (macOS; the script uses the Java inside Fiji), close Fiji and run:
 
 ```bash
 git clone https://github.com/AIHector/Fiji-Window-Layouts.git
 cd Fiji-Window-Layouts
 ./test.sh     # 540 headless unit tests
-./build.sh    # compiles with Fiji's own Java and installs the jar
+./build.sh    # compiles with Fiji's own Java and installs both files
 ```
 
 `build.sh` takes the Fiji folder as an optional argument (`./build.sh /path/to/Fiji`).
 
 To uninstall, delete the two files above.
 
-# Quick start
-
-1. Open Fiji and your images. They are placed according to the active layout. **Your default is slot 1, "My default"** (see below).
-2. Press **Cmd+Option+2**, **3**, ... to try the other layouts. The ImageJ status bar shows the name of the layout.
-3. Click an image and press **Cmd+Option+←** to snap it to the left half, **Cmd+Option+Delete** to put it back.
-4. Like an arrangement you made by hand? **Plugins ▸ Window Layouts ▸ Save Current Arrangement...** stores it in any slot, 0 to 9.
-5. **Plugins ▸ Window Layouts ▸ Window Layouts Shortcuts** shows the shortcut list inside Fiji.
-
-# How windows are grouped
+## How windows are grouped
 
 A layout places *kinds* of windows. Anything not in this table is never moved.
 
@@ -73,31 +119,17 @@ How each kind is placed:
 - **Shared slots.** Some kinds share a slot, for example B&C, Threshold and Channels, since you rarely use all of them at once. If several are open together they **cascade** 24 px down-right, so every title bar stays visible.
 - **No hidden title bars.** A fixed tool can be taller than its zone (B&C is 303 px). The window below it (Results, Log or ROI Manager) then gives up height from its top, so it starts just below the tool. If that would make it shorter than its minimum, it stays where it is.
 
-# The built-in layouts
+## The built-in layouts
 
-## Slot 1: My default (your arrangement)
-
-Saved on 15 October from the windows you arranged: the image on the left, ROI Manager and B&C side by side at the top right, then Log (Results shares its place), then the Console, all touching. **Reset Layout...** on slot 1 brings back the built-in Layout 1 below; your arrangement is then gone, so save it into another slot first if you want both.
-
-| kind | zone `x,y,w,h` (% of work area) |
-|---|---|
-| images | `0,0,59,100` |
-| roi, snt | `59,0,30.8,37.2` |
-| b&c, threshold, channels | `89.8,0,10.2,37.2` |
-| log, results | `59,37.2,41,34.2` |
-| console | `59,71.4,41,28.6` |
-
-On the laptop screen this gives: image 892 × 814 px; ROI Manager 466 × 303 and B&C 154 × 303 under the toolbar; Log 620 × 278; Console 620 × 233 down to the Dock.
-
-## The built-in designs
+### The built-in designs
 
 The diagrams show your laptop screen (1512 × 982 points). On any screen the zones are percentages of the area below the ImageJ toolbar (the **work area**), so they scale. The tables give the zones in that unit, exactly as **Edit Layout...** shows them. You can copy a table into a custom layout and change it.
 
-## Layout 1: balanced
+### Layout 1: balanced
 
 Images on the left 58%. On the right: ROI Manager, B&C and Threshold in a row, then Results, then Log.
 
-![Layout 1](docs/layout1.png){ width=80% }
+![Layout 1](docs/layout1.png)
 
 | kind | zone `x,y,w,h` (% of work area) |
 |---|---|
@@ -108,11 +140,11 @@ Images on the left 58%. On the right: ROI Manager, B&C and Threshold in a row, t
 | results | `58,33,42,37` |
 | log | `58,70,42,30` |
 
-## Layout 2: image first
+### Layout 2: image first
 
 The largest image area (72%). One narrow column on the right: B&C next to the ROI Manager, then Results, then Log.
 
-![Layout 2](docs/layout2.png){ width=80% }
+![Layout 2](docs/layout2.png)
 
 | kind | zone `x,y,w,h` (% of work area) |
 |---|---|
@@ -122,11 +154,11 @@ The largest image area (72%). One narrow column on the right: B&C next to the RO
 | results | `72,40,28,34` |
 | log | `72,74,28,26` |
 
-## Layout 3: analysis bench
+### Layout 3: analysis bench
 
 Images across the top 60%. A bench of tools along the bottom: Results, ROI Manager, B&C, Log.
 
-![Layout 3](docs/layout3.png){ width=80% }
+![Layout 3](docs/layout3.png)
 
 | kind | zone `x,y,w,h` (% of work area) |
 |---|---|
@@ -136,11 +168,11 @@ Images across the top 60%. A bench of tools along the bottom: Results, ROI Manag
 | results | `0,60,45,40` |
 | log | `80,60,20,40` |
 
-## Layout 4: side-by-side compare
+### Layout 4: side-by-side compare
 
 A wide image area for comparing images next to each other, a full-width Results strip below, tools in a column on the right.
 
-![Layout 4](docs/layout4.png){ width=80% }
+![Layout 4](docs/layout4.png)
 
 | kind | zone `x,y,w,h` (% of work area) |
 |---|---|
@@ -150,11 +182,11 @@ A wide image area for comparing images next to each other, a full-width Results 
 | results | `0,78,82,22` |
 | log | `82,68,18,32` |
 
-## Layout 5: neuron tracing
+### Layout 5: neuron tracing
 
 Images on the left 60%. The SNT windows get the top right, with ROI Manager and B&C below, then Results and Log.
 
-![Layout 5](docs/layout5.png){ width=80% }
+![Layout 5](docs/layout5.png)
 
 | kind | zone `x,y,w,h` (% of work area) |
 |---|---|
@@ -165,11 +197,11 @@ Images on the left 60%. The SNT windows get the top right, with ROI Manager and 
 | log | `60,84,40,16` |
 | snt | `60,0,40,33` |
 
-## Layout 6: two displays
+### Layout 6: two displays
 
 Images fill display 1 (the one with the toolbar); all tools go to display 2. **With only one display, layout 6 behaves like layout 2** and the status bar says so.
 
-![Layout 6](docs/layout6.png){ width=100% }
+![Layout 6](docs/layout6.png)
 
 | kind | zone `x,y,w,h` (% of work area) |
 |---|---|
@@ -180,9 +212,9 @@ Images fill display 1 (the one with the toolbar); all tools go to display 2. **W
 | log | `0,75,100,25@2` |
 | snt | `50,0,50,40@2` |
 
-# Your own layouts: every slot, 0 to 9
+## Your own layouts: every slot, 0 to 9
 
-## Save Current Arrangement
+### Save Current Arrangement
 
 1. Arrange the windows by hand (or with the snap keys).
 2. **Plugins ▸ Window Layouts ▸ Save Current Arrangement...**
@@ -204,7 +236,7 @@ Positions are stored relative to the work area (the screen minus the Side Toolba
 
 **To set up layouts 1 to 4 for 1, 2, 3 and 4 images**: open your tools and one image, arrange everything, save into slot 1; open a second image, arrange, save into slot 2; and so on. *Re-arrange now* (or a built-in layout) tiles the images first if you want a starting point: 2 images side by side, 3 images in three columns, 4 images in a 2 × 2 grid.
 
-## Edit Layout
+### Edit Layout
 
 **Plugins ▸ Window Layouts ▸ Edit Layout...** opens two dialogs:
 
@@ -220,7 +252,7 @@ Zone syntax:
 | `0,50,100,50@2` | `@2`, `@3`... puts the zone on another display (see *Multiple displays*) |
 | *(blank)* | this kind of window is not managed by the layout |
 
-## Reset Layout
+### Reset Layout
 
 **Plugins ▸ Window Layouts ▸ Reset Layout...** removes what you saved in a slot: slots 1 to 6 return to their original design, slots 0, 7, 8 and 9 become empty.
 
@@ -228,7 +260,7 @@ The dialog refuses a zone that does not have four numbers, has a width or height
 
 Empty slots show `(empty)` in the slot lists. Pressing the shortcut of an empty slot only shows *"slot N is empty"* in the status bar.
 
-# Keyboard shortcuts
+## Keyboard shortcuts
 
 All shortcuts use the **modifier**: **Cmd+Option** by default on macOS. It can be changed in Preferences. Magnet uses Ctrl+Option and Ctrl+Option+Cmd, so the two never collide. The shortcuts work while any Fiji window is in front (image, toolbar, Results, ...), and they never reach other applications.
 
@@ -255,7 +287,7 @@ Notes for this Mac:
 - **Spanish keyboard.** Java reads keys by their *position* on a US keyboard. The keys labelled `.`, `,` and the digits work as printed, and so does the key labelled `-` (right of `.`). The `'` key right of `0` also works as *previous layout*. Keys that need Shift or Option on a Spanish keyboard (`=`, `[`, `]`) are matched by position: `=` is the `¡` key, `[` is the `` ` `` key, `]` is the `+` key. The letter alternatives (**.**, **,**, **N**, **P**) are easier to remember.
 - ImageJ's own single-key shortcuts are not affected: a key the plugin uses is consumed before ImageJ sees it. A key the plugin does *not* use, pressed with Cmd+Option, still reaches ImageJ. For example Cmd+Option+`/` used to open *Reslice*, which is why `/` is now also *previous layout*.
 
-# Snap zones
+## Snap zones
 
 Snapping acts on the **active Fiji window** (the one you clicked last). It never acts on the ImageJ toolbar. Zones are computed on the display the window is on, using the work area, so a snapped window never covers the toolbar.
 
@@ -267,7 +299,7 @@ Snapping acts on the **active Fiji window** (the one you clicked last). It never
 
 The same zones are in the menu **Plugins ▸ Window Layouts ▸ Snap Zones** (halves, maximize, restore) and in **Snap Active Window...**, a dialog with all 18 zones.
 
-# Automatic placement
+## Automatic placement
 
 When on (the default), new windows are placed according to the active layout as they open. When an image closes, the remaining images are re-tiled. A window you move by hand stays where you put it until the next window opens or closes (images re-tile) or you apply a layout.
 
@@ -275,17 +307,17 @@ When on (the default), new windows are placed according to the active layout as 
 - **Re-arrange now** applies the active layout again, for example after moving windows by hand.
 - If you prefer to arrange images by hand and only use the shortcuts, turn automatic placement off. Layout and snap shortcuts keep working.
 
-# Exact save: verification (22 October 2026)
+## Exact save: verification (22 October 2026)
 
 In a separate copy of Fiji: three images (400×300, 256×256, 600×200) at chosen places and zooms, with B&C, Log and Undo History, saved into slot 7; after layout 2 rearranged everything, *Layout 7* put every window back to the pixel (position and size) and gave each image its own zoom again (150%, 160%, 399%). Two new images then took the first free saved windows, top-left first. 536 unit tests pass, 17 of them for exact layouts.
 
-# With the Side Toolbar
+## With the Side Toolbar
 
 When the Side Toolbar plugin shows Fiji's toolbar as a vertical bar, every layout fills the screen *beside* the bar, and below the ImageJ status strip (or above it, when the strip is at the bottom of the screen). The Side Toolbar places the ImageJ window itself, so Window Layouts no longer stretches it across the top. When the bar changes side or width, the windows are re-arranged.
 
 Verified on 21 October 2026: layouts 1 to 5 with two images, ROI Manager, B&C and Log put every window beside the bar and below the strip; an image opened in the installed Fiji went to (40, 89), next to the 40 px bar and under the 55 px strip, and moved to (74, 89) when the bar grew to two columns. 519 unit tests (now 536), 4 of them for the bar's band.
 
-# Multiple displays
+## Multiple displays
 
 Displays are numbered for `@N` and for display moves:
 
@@ -294,7 +326,7 @@ Displays are numbered for `@N` and for display moves:
 
 On this Mac that gives: **1** = the laptop screen, **2** = the portrait monitor on the left, **3** = the monitor above. A zone on a display that is not connected falls back to display 1 (this rule is in the code but was not tried live).
 
-# Preferences
+## Preferences
 
 **Plugins ▸ Window Layouts ▸ Window Layouts Preferences...**
 
@@ -306,7 +338,7 @@ On this Mac that gives: **1** = the laptop screen, **2** = the portrait monitor 
 | Stretch the ImageJ toolbar across the screen | on | the toolbar takes the full width of display 1 |
 | Write a key log to `~/fijilayouts-debug.log` | off | records every Cmd/Option/Ctrl key the plugin sees, for troubleshooting shortcuts. Leave it off otherwise. |
 
-# Menu reference (Plugins ▸ Window Layouts)
+## Menu reference (Plugins ▸ Window Layouts)
 
 | Command | What it does |
 |---|---|
@@ -324,7 +356,7 @@ On this Mac that gives: **1** = the laptop screen, **2** = the portrait monitor 
 
 All commands can be used in macros, for example `run("Layout 3");` or `run("Snap Active Window...", "zone=right-third");`.
 
-# Where settings are stored
+## Where settings are stored
 
 In Fiji's preferences file, `~/Library/Preferences/IJ_Prefs.txt`, written immediately after every change:
 
@@ -339,7 +371,7 @@ In Fiji's preferences file, `~/Library/Preferences/IJ_Prefs.txt`, written immedi
 
 To reset everything, quit Fiji and delete the lines starting with `.fijilayouts.`.
 
-# Troubleshooting
+## Troubleshooting
 
 | Problem | Fix |
 |---|---|
@@ -350,7 +382,7 @@ To reset everything, quit Fiji and delete the lines starting with `.fijilayouts.
 | Part of an image is hidden | *Image zoom: fill* crops the edges so the window has no empty space. Pan with the hand tool, or choose *fit* in Preferences to always see the whole image. |
 | Fiji says "Plugin configuration error" at startup | A command name in `plugins.config` clashes with another plugin. Rebuild after renaming the entry. |
 
-# Verification report (14-15 October 2026)
+## Verification report (14-15 October 2026)
 
 Everything below was tested on this Mac (Fiji 2.18.0 / ImageJ 1.54p, Java 21, macOS, three displays, Spanish keyboard). Positions were read from Fiji itself and cross-checked with macOS accessibility (System Events): both always agreed. Expected positions were recomputed independently from the zone percentages.
 
@@ -386,7 +418,7 @@ Everything below was tested on this Mac (Fiji 2.18.0 / ImageJ 1.54p, Java 21, ma
 - **Ctrl+Shift and Alt+Shift modifiers** were tested only in unit tests (Ctrl+Option was also tested live).
 - **The Dock on the side or a different toolbar size.** The maths uses the real screen insets and toolbar height, but only this configuration was tried.
 
-# Known limitations
+## Known limitations
 
 - On the 14-inch screen there is not enough room for every tool at once. B&C, Threshold and Channels cascade in one slot and can overlap a neighbouring window (Threshold is 303 px wide).
 - A window moved to another display and back can end a few pixels from where it started (it is clamped to stay on screen). Delete (restore) returns it exactly.
@@ -394,7 +426,7 @@ Everything below was tested on this Mac (Fiji 2.18.0 / ImageJ 1.54p, Java 21, ma
 - Fixed-size tools (B&C, Threshold, Channels) cannot be stretched: if their zone is larger than they are, some desktop shows around them.
 - Custom layouts store one rectangle per kind of window, not per individual window.
 
-# Files
+## Files
 
 | Path | Content |
 |---|---|
@@ -407,6 +439,6 @@ Everything below was tested on this Mac (Fiji 2.18.0 / ImageJ 1.54p, Java 21, ma
 | `README.md`, `README.pdf` | this guide |
 | `LICENSE` | MIT License |
 
-# License
+## License
 
 MIT License, © 2026 Ettore Colombo. See [LICENSE](LICENSE).
