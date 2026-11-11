@@ -54,6 +54,8 @@ public class WindowLayouts_ implements ij.plugin.PlugIn {
 		if (arg.matches("[0-9]")) {
 			final int n = Integer.parseInt(arg);
 			SwingUtilities.invokeLater(new Runnable() { public void run() { Engine.applyLayout(n); } });
+		} else if (arg.startsWith("follow:")) {
+			Follow.setMode(arg.substring(7));
 		} else if (arg.startsWith("snap:")) {
 			final String zone = arg.substring(5);
 			SwingUtilities.invokeLater(new Runnable() { public void run() { Engine.snap(zone); } });
@@ -265,9 +267,14 @@ final class Engine {
 	/** How images meet their area: "fill" (no empty space; edges may be cropped), "fit" (whole image), "steps" (whole image, standard zooms). */
 	static final String[] IMAGE_ZOOMS = {"fill", "fit", "steps"};
 	static String imageZoom() {
-		String m = Prefs.get("fijilayouts.imagezoom", "fill");
+		// "Fill the Window" (the image's Zoom menu) also makes placements fill their zone
+		if (Follow.mode().equals("fill")) return "fill";
+		// "Fit and Shrink the Window": the whole image, and the window shrinks around it
+		if (Follow.mode().equals("shrink")) return "shrink";
+		String m = Prefs.get("fijilayouts.imagezoom", "fit");
+		if (m.equals("fill")) return "fit"; // fill is chosen with the Zoom menu now; the old setting means the whole image
 		for (String ok : IMAGE_ZOOMS) if (ok.equals(m)) return m;
-		return "fill";
+		return "fit";
 	}
 	static boolean stretchToolbar() { return Prefs.get("fijilayouts.toolbarwide", true); }
 
@@ -392,8 +399,27 @@ final class Engine {
 
 	static GraphicsDevice primaryDevice() {
 		Frame ij = IJ.getInstance();
-		if (ij != null && ij.getGraphicsConfiguration() != null) return ij.getGraphicsConfiguration().getDevice();
+		if (ij != null) return deviceAt(ij.getBounds());
 		return GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice();
+	}
+
+	/**
+	 * The display under the centre of a rectangle, else the one it overlaps most, else the main display.
+	 * Windows are matched to displays by where they are, because Java's own answer (getGraphicsConfiguration)
+	 * lags after a move and can stay wrong after displays sleep, wake or reconnect.
+	 */
+	static GraphicsDevice deviceAt(Rectangle r) {
+		Point c = new Point(r.x + r.width / 2, r.y + r.height / 2);
+		GraphicsDevice best = null;
+		long bestArea = 0;
+		for (GraphicsDevice d : devices()) {
+			Rectangle b = d.getDefaultConfiguration().getBounds();
+			if (b.contains(c)) return d;
+			Rectangle i = b.intersection(r);
+			long area = i.isEmpty() ? 0 : (long) i.width * i.height;
+			if (area > bestArea) { bestArea = area; best = d; }
+		}
+		return best != null ? best : GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice();
 	}
 
 	/** Display 1 is the toolbar's display; the others follow left to right (then top to bottom). */
@@ -506,8 +532,8 @@ final class Engine {
 		for (Rectangle b : sideToolbarBands()) if (b.intersects(w.getBounds())) underBar = true;
 		ij.ImageJ ij = IJ.getInstance();
 		if (sideToolbar() != null && ij != null && w != ij && ij.isVisible() && ij.getBounds().intersects(w.getBounds())) underBar = true;
-		if (!underBar || w.getGraphicsConfiguration() == null) return;
-		Rectangle r = keptClear(w.getBounds(), workArea(w.getGraphicsConfiguration().getDevice()));
+		if (!underBar) return;
+		Rectangle r = keptClear(w.getBounds(), workArea(deviceOf(w)));
 		if (r != null) w.setBounds(r);
 	}
 
@@ -799,18 +825,36 @@ final class Engine {
 		return mag;
 	}
 
-	/** Zoom an image window to the largest standard magnification that fits the cell, and place it. */
+	/**
+	 * The border of an image window around its canvas (title line, stack sliders), from the layout's preferred sizes,
+	 * which agree even while the current sizes do not; 10 x 49 points (a single image) if they look wrong.
+	 */
+	static java.awt.Dimension chrome(ImageWindow win) {
+		ImageCanvas cv = win.getCanvas();
+		int w = cv == null ? -1 : win.getPreferredSize().width - cv.getPreferredSize().width;
+		int h = cv == null ? -1 : win.getPreferredSize().height - cv.getPreferredSize().height;
+		return w >= 0 && w <= 200 && h >= 0 && h <= 300 ? new java.awt.Dimension(w, h) : new java.awt.Dimension(10, 49);
+	}
+
+	/**
+	 * Zooms an image window for its cell (fill, fit or standard steps) and places it. The window is sized first and
+	 * ImageJ's own layout then sizes the canvas inside it; the zoom and the visible area are set to match that canvas.
+	 * (Asking for a canvas size instead made ImageJ's layout resize the canvas again, and the two disagreed.)
+	 */
 	static void fitImage(ImageWindow win, ImagePlus imp, Rectangle cell) {
+		fitImage(win, imp, cell, 1);
+	}
+
+	static void fitImage(final ImageWindow win, final ImagePlus imp, final Rectangle cell, final int retries) {
 		ImageCanvas cv = win.getCanvas();
 		if (cv == null || imp == null) {
 			// special viewers (for example the 3D viewer) manage their own size: only move them
 			win.setLocation(cell.x, cell.y);
 			return;
 		}
-		int chromeW = win.getWidth() - cv.getWidth();
-		int chromeH = win.getHeight() - cv.getHeight();
 		if (win instanceof PlotWindow) {
 			// a plot is redrawn at the size of its cell instead of being zoomed
+			int chromeW = win.getWidth() - cv.getWidth(), chromeH = win.getHeight() - cv.getHeight();
 			ij.gui.Plot plot = ((PlotWindow) win).getPlot();
 			if (plot != null) {
 				plot.setSize(Math.max(cell.width - chromeW, 200), Math.max(cell.height - chromeH, 120));
@@ -820,33 +864,61 @@ final class Engine {
 			win.setLocation(cell.x, cell.y);
 			return;
 		}
+		releaseAlt();
+		// 1. the window takes the cell; ImageJ's layout gives the canvas what is left inside the window's border
+		java.awt.Dimension border = chrome(win);
+		int chromeW = border.width, chromeH = border.height;
+		win.setBounds(cell);
+		win.validate();
 		int iw = imp.getWidth(), ih = imp.getHeight();
 		int availW = Math.max(cell.width - chromeW, 32), availH = Math.max(cell.height - chromeH, 32);
 		double fitW = availW / (double) iw, fitH = availH / (double) ih;
 		String mode = imageZoom();
 		double mag;
-		Rectangle src;
 		int cw, ch;
 		if (mode.equals("fill")) {
-			// the image covers the whole area: the window fills its zone, the overflowing edges are cropped
+			// fill: the image covers the whole window; what does not fit is cropped at the right and the bottom
 			mag = Math.max(1 / 72.0, Math.min(Math.max(fitW, fitH), 32));
+			cw = availW;
+			ch = availH;
+		} else {
+			// fit (or steps): the window still takes the whole zone, and the whole image is fitted inside it
+			double fit = Math.min(fitW, fitH);
+			mag = mode.equals("fit") || mode.equals("shrink") ? Math.max(1 / 72.0, Math.min(fit, 32)) : zoomFor(fit);
 			cw = Math.min(availW, (int) Math.floor(iw * mag));
 			ch = Math.min(availH, (int) Math.floor(ih * mag));
-			int sw = Math.min(iw, (int) Math.round(cw / mag)), sh = Math.min(ih, (int) Math.round(ch / mag));
-			src = new Rectangle((iw - sw) / 2, (ih - sh) / 2, sw, sh);
-		} else {
-			double fit = Math.min(fitW, fitH);
-			mag = mode.equals("fit") ? Math.max(1 / 72.0, Math.min(fit, 32)) : zoomFor(fit);
-			cw = (int) Math.floor(iw * mag);
-			ch = (int) Math.floor(ih * mag);
-			src = new Rectangle(0, 0, iw, ih);
 		}
-		cv.setSourceRect(src);
-		cv.setMagnification(mag);
+		// fit and shrink: the window wraps the fitted image (no empty space), at the zone's top-left corner
+		Rectangle target = mode.equals("shrink") ? new Rectangle(cell.x, cell.y, cw + chromeW, ch + chromeH) : cell;
+		// the zoom, and the part of the image the canvas shows: always from the image's top-left corner.
+		// ImageJ keeps the canvas no larger than the image at the old zoom, so the canvas size is set and the
+		// window laid out again; this order matters, as ImageJ's setSourceRect derives the zoom from the canvas size
+		int sw = Math.max(1, Math.min(iw, (int) Math.round(cw / mag))), sh = Math.max(1, Math.min(ih, (int) Math.round(ch / mag)));
 		cv.setSize(cw, ch);
-		win.pack();
-		win.setLocation(cell.x, cell.y);
-		imp.updateAndRepaintWindow();
+		cv.setSourceRect(new Rectangle(0, 0, sw, sh));
+		cv.setMagnification(mag);
+		win.setBounds(target);
+		win.validate();
+		cv.repaint();
+		Follow.noteZoom(win); // this resize is a placement, not the user dragging
+		final Rectangle placed = win.getBounds();
+		final double placedMag = mag;
+		debug("fit " + titleOf(win) + " cell " + cell + " -> win " + placed + " canvas " + cv.getSize() + " chrome " + chromeW
+			+ "x" + chromeH + " mag " + mag + " mode " + mode);
+		// ImageJ may still adjust a window that has just opened: check shortly after, and place it again if needed
+		if (retries > 0) {
+			javax.swing.Timer t = new javax.swing.Timer(250, new java.awt.event.ActionListener() {
+				public void actionPerformed(java.awt.event.ActionEvent e) {
+					ImageCanvas c = win.getCanvas();
+					if (c == null || !win.isVisible() || imp.getWindow() != win) return;
+					boolean ok = win.getBounds().equals(placed) && Math.abs(c.getMagnification() - placedMag) < 1e-9;
+					debug("  verify " + (ok ? "ok" : "changed: win " + win.getBounds() + " mag " + c.getMagnification()));
+					if (!ok) fitImage(win, imp, cell, retries - 1);
+				}
+			});
+			t.setRepeats(false);
+			t.start();
+		}
 	}
 
 	// ---------------------------------------------------------------- Magnet-style snapping
@@ -854,7 +926,7 @@ final class Engine {
 	static final String[] SNAP_ZONES = {
 		"left-half", "right-half", "top-half", "bottom-half",
 		"top-left", "top-right", "bottom-left", "bottom-right",
-		"left-third", "center-third", "right-third", "left-two-thirds", "right-two-thirds",
+		"left-third", "center-third", "right-third", "left-two-thirds", "center-two-thirds", "right-two-thirds",
 		"center", "maximize", "restore", "next-display", "previous-display"};
 
 	/** The last Fiji window that was focused and is not one of this plugin's dialogs. */
@@ -873,8 +945,7 @@ final class Engine {
 	}
 
 	static GraphicsDevice deviceOf(Window w) {
-		GraphicsConfiguration gc = w.getGraphicsConfiguration();
-		return gc != null ? gc.getDevice() : primaryDevice();
+		return w.getWidth() > 0 && w.getHeight() > 0 ? deviceAt(w.getBounds()) : primaryDevice();
 	}
 
 	static Rectangle zoneRect(String zone, Rectangle u, Window w) {
@@ -883,6 +954,11 @@ final class Engine {
 
 	static Rectangle zoneRect(String zone, Rectangle u, int winW, int winH) {
 		int hw = u.width / 2, hh = u.height / 2, tw = u.width / 3;
+		// on a display taller than wide, thirds go from top to bottom (as in Magnet): left = top, right = bottom
+		if (u.height > u.width && zone.contains("third")) {
+			Rectangle t = zoneRect(zone, new Rectangle(u.y, u.x, u.height, u.width), winH, winW);
+			return new Rectangle(t.y, t.x, t.height, t.width);
+		}
 		switch (zone) {
 			case "left-half": return new Rectangle(u.x, u.y, hw, u.height);
 			case "right-half": return new Rectangle(u.x + hw, u.y, u.width - hw, u.height);
@@ -896,6 +972,7 @@ final class Engine {
 			case "center-third": return new Rectangle(u.x + tw, u.y, tw, u.height);
 			case "right-third": return new Rectangle(u.x + 2 * tw, u.y, u.width - 2 * tw, u.height);
 			case "left-two-thirds": return new Rectangle(u.x, u.y, 2 * tw, u.height);
+			case "center-two-thirds": return new Rectangle(u.x + u.width / 6, u.y, 2 * tw, u.height);
 			case "right-two-thirds": return new Rectangle(u.x + tw, u.y, u.width - tw, u.height);
 			case "maximize": return new Rectangle(u);
 			case "center": {
@@ -963,15 +1040,35 @@ final class Engine {
 					if (e instanceof WindowEvent) onWindow((WindowEvent) e);
 					else if (e.getID() == java.awt.event.ComponentEvent.COMPONENT_SHOWN && e.getSource() instanceof Window)
 						onShown((Window) e.getSource()); // a window shown again (e.g. Fiji's Console) gets no WINDOW_OPENED
-					else if (e instanceof KeyEvent) onKey((KeyEvent) e);
+					else if (e instanceof java.awt.event.MouseWheelEvent) {
+						// a stack window adds ImageJ's wheel handler only after it opened: take over at the first scroll
+						Window w = SwingUtilities.getWindowAncestor((java.awt.Component) e.getSource());
+						if (e.getSource() instanceof ImageWindow) w = (Window) e.getSource();
+						if (w instanceof ImageWindow) Pan.install((ImageWindow) w);
+					}
 				} catch (Throwable t) { /* a layout problem must never break the user's work */
 					debug("ERROR " + t + " at " + (t.getStackTrace().length > 0 ? t.getStackTrace()[0] : "")); }
 			}
 		};
-		Toolkit.getDefaultToolkit().addAWTEventListener(l, AWTEvent.WINDOW_EVENT_MASK | AWTEvent.KEY_EVENT_MASK | AWTEvent.COMPONENT_EVENT_MASK);
+		// the shortcuts are taken before any window sees them: ImageJ must not also act on the same key
+		// (with an AWTEventListener, a consumed key still reached ImageJ, which then changed the image's zoom)
+		java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(new java.awt.KeyEventDispatcher() {
+			public boolean dispatchKeyEvent(KeyEvent e) {
+				try { return onKey(e); }
+				catch (Throwable t) { debug("ERROR " + t); return false; }
+			}
+		});
+		Toolkit.getDefaultToolkit().addAWTEventListener(l, AWTEvent.WINDOW_EVENT_MASK
+			| AWTEvent.COMPONENT_EVENT_MASK | AWTEvent.MOUSE_WHEEL_EVENT_MASK);
 		System.getProperties().put(INSTALLED_KEY, l);
 		SwingUtilities.invokeLater(new Runnable() {
 			public void run() {
+				// image windows that opened before the plugin started get two-finger panning too
+				int[] ids = ij.WindowManager.getIDList();
+				if (ids != null) for (int id : ids) {
+					ImagePlus imp = ij.WindowManager.getImage(id);
+					if (imp != null && imp.getWindow() != null) { Pan.install(imp.getWindow()); Follow.install(imp.getWindow()); }
+				}
 				// windows that opened before the plugin started (the toolbar, Fiji's Console) get placed too
 				Layout a = effective(activeLayout());
 				if (a != null && autoEnabled()) placeAll(a);
@@ -983,6 +1080,10 @@ final class Engine {
 		int id = e.getID();
 		Window w = e.getWindow();
 		if (id == WindowEvent.WINDOW_ACTIVATED && !isOwnDialog(w)) lastTarget = w;
+		if (id == WindowEvent.WINDOW_OPENED && w instanceof ImageWindow) {
+			Pan.install((ImageWindow) w);
+			Follow.install((ImageWindow) w);
+		}
 		if (!autoEnabled()) return;
 		if (id != WindowEvent.WINDOW_OPENED && id != WindowEvent.WINDOW_CLOSED) return;
 		boolean image = w instanceof ImageWindow;
@@ -1082,6 +1183,7 @@ final class Engine {
 			case KeyEvent.VK_F: return "center-third";
 			case KeyEvent.VK_G: return "right-third";
 			case KeyEvent.VK_E: return "left-two-thirds";
+			case KeyEvent.VK_R: return "center-two-thirds";
 			case KeyEvent.VK_T: return "right-two-thirds";
 			case KeyEvent.VK_C: return "center";
 			case KeyEvent.VK_ENTER: return "maximize";
@@ -1101,16 +1203,43 @@ final class Engine {
 		} catch (java.io.IOException ignored) { }
 	}
 
-	static void onKey(KeyEvent e) {
+	/** The key code of a shortcut being held: its typed and released events are kept from ImageJ too. */
+	private static int heldShortcut = -1;
+
+	/** Handles a shortcut; true when the key was used (it then goes to no window). */
+	static boolean onKey(KeyEvent e) {
 		if (e.getID() == KeyEvent.KEY_PRESSED && (e.isMetaDown() || e.isAltDown() || e.isControlDown()))
 			debug("key " + KeyEvent.getKeyText(e.getKeyCode()) + " code=" + e.getKeyCode()
 				+ " mods=" + KeyEvent.getModifiersExText(e.getModifiersEx())
 				+ " match=" + modifierMatches(e) + " action=" + actionFor(e.getKeyCode()));
-		if (e.getID() != KeyEvent.KEY_PRESSED || e.isConsumed() || !modifierMatches(e)) return;
-		if (altGrInText(IJ.isMacOSX(), e.isControlDown(), e.isAltDown(), focusInText())) return;
-		String action = actionFor(e.getKeyCode());
-		if (action == null) return;
+		if (e.getID() == KeyEvent.KEY_TYPED) return heldShortcut != -1;
+		if (e.getID() == KeyEvent.KEY_RELEASED) {
+			if (e.getKeyCode() != heldShortcut) return false;
+			heldShortcut = -1;
+			return true;
+		}
+		if (e.getID() != KeyEvent.KEY_PRESSED || e.isConsumed() || !modifierMatches(e)) return false;
+		if (altGrInText(IJ.isMacOSX(), e.isControlDown(), e.isAltDown(), focusInText())) return false;
+		final String action = actionFor(e.getKeyCode());
+		if (action == null) return false;
 		e.consume();
+		heldShortcut = e.getKeyCode();
+		// run after the key event, as the AWTEventListener did (snapping inside the dispatcher can deadlock focus)
+		SwingUtilities.invokeLater(new Runnable() { public void run() { runAction(action); } });
+		return true;
+	}
+
+	/**
+	 * ImageJ's layout scales an image to fit its window whenever it thinks the Option (Alt) key is down
+	 * (ImageCanvas.resizeCanvas). The shortcuts are pressed with Option, which is still held while the window is
+	 * placed: without this, every placement showed the whole image, whatever the chosen mode.
+	 */
+	static void releaseAlt() {
+		if (IJ.altKeyDown()) IJ.setKeyUp(KeyEvent.VK_ALT);
+	}
+
+	static void runAction(String action) {
+		releaseAlt();
 		if (action.startsWith("layout:")) applyLayout(Integer.parseInt(action.substring(7)));
 		else if (action.equals("toggle")) toggleAuto();
 		else if (action.equals("next")) applyLayout(nextExisting(activeLayout(), 1));
@@ -1305,9 +1434,16 @@ final class Engine {
 		gd.addCheckbox("Place windows automatically as they open", autoEnabled());
 		gd.addChoice("Image zoom", IMAGE_ZOOMS, imageZoom());
 		gd.addCheckbox("Stretch the ImageJ toolbar across the screen", stretchToolbar());
+		String[] followLabels = {"keep the zoom", "fill the window", "fit the whole image", "fit and shrink the window"};
+		gd.addChoice("Images in their windows", followLabels, followLabels[java.util.Arrays.asList(Follow.MODES).indexOf(Follow.mode())]);
+		gd.addCheckbox("Two-finger panning in images (trackpad)", Pan.enabled());
+		gd.addCheckbox("Smooth zoom with Ctrl + two-finger scroll (around the cursor)", Pan.smoothZoom());
 		gd.addCheckbox("Write a key log to ~/fijilayouts-debug.log (troubleshooting)", debugEnabled());
 		gd.addMessage("Image zoom: fill = the image covers its whole area (edges may be cropped; pan with the hand tool),\n"
 			+ "fit = the whole image, as large as fits; steps = the whole image at ImageJ's standard zooms.\n"
+			+ "Two-finger panning moves a zoomed image in every direction; Ctrl + scroll zooms smoothly around the\n"
+			+ "cursor (off: ImageJ's zoom steps); Shift + scroll keeps ImageJ's zoom steps,\n"
+			+ "and up/down still changes the slice in a stack (Edit > Options > Misc. decides).\n"
 			+ "Cmd+Alt is the default on macOS (Ctrl+Alt elsewhere). Pick another pair if it clashes with\n"
 			+ "a window manager such as Magnet, which uses Ctrl+Alt.");
 		gd.showDialog();
@@ -1316,7 +1452,11 @@ final class Engine {
 		Prefs.set("fijilayouts.auto", gd.getNextBoolean());
 		Prefs.set("fijilayouts.imagezoom", gd.getNextChoice());
 		Prefs.set("fijilayouts.toolbarwide", gd.getNextBoolean());
+		String follow = Follow.MODES[gd.getNextChoiceIndex()];
+		Prefs.set("fijilayouts.trackpadpan", gd.getNextBoolean());
+		Prefs.set("fijilayouts.smoothzoom", gd.getNextBoolean());
 		Prefs.set("fijilayouts.debug", gd.getNextBoolean());
+		Follow.setMode(follow);
 		persist();
 		IJ.showStatus("Window Layouts: shortcuts now use " + modifier());
 	}
@@ -1335,8 +1475,8 @@ final class Engine {
 			+ "<tr><td><b>A</b></td><td>turn automatic placement on/off</td></tr>"
 			+ "<tr><td><b>arrows</b></td><td>snap the active window to a half</td></tr>"
 			+ "<tr><td><b>U I J K</b></td><td>quarters (top-left, top-right, bottom-left, bottom-right)</td></tr>"
-			+ "<tr><td><b>S (or D) F G</b></td><td>left, center, right third</td></tr>"
-			+ "<tr><td><b>E T</b></td><td>left / right two-thirds</td></tr>"
+			+ "<tr><td><b>S (or D) F G</b></td><td>left, center, right third (on macOS, Cmd+Alt+D hides the Dock: use S) (top, middle, bottom on a portrait display)</td></tr>"
+			+ "<tr><td><b>E R T</b></td><td>left, center, right two-thirds (top, middle, bottom on a portrait display)</td></tr>"
 			+ "<tr><td><b>C</b></td><td>center, <b>Return</b> maximize, <b>Delete</b> restore</td></tr>"
 			+ "<tr><td><b>N</b> / <b>P</b></td><td>move to next / previous display (also ] / [)</td></tr>"
 			+ "</table><br>Active layout: " + activeLayout() + ". Automatic placement: " + (autoEnabled() ? "on" : "off") + ".<br>"

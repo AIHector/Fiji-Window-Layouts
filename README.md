@@ -30,10 +30,12 @@ Fiji opens every window wherever it likes, so a working session starts with drag
 | Feature | What you get |
 |---|---|
 | **Ten layouts, one key each** | **Cmd+Option+0** to **9** on macOS, **Ctrl+Alt+0** to **9** on Windows and Linux, re-arranges every Fiji window at once |
-| **Automatic placement** | images and tool windows go to their place in the active layout as soon as they open; images are tiled and zoomed to fill their area |
+| **Automatic placement** | images and tool windows go to their place in the active layout as soon as they open; images are tiled and zoomed so that the whole image shows (or, if you choose, so that it fills its area) |
 | **Six designs to start from** | balanced, image first, analysis bench, side-by-side comparison, neuron tracing, two displays |
 | **Save exactly what you see** | arrange the windows by hand and save the arrangement: every position, size and image zoom comes back |
-| **Snap zones** | send the active window to a half, a quarter, a third or two thirds of the screen, or to another display |
+| **Snap zones** | send the active window to a half, a quarter, a third or two thirds of the screen (top to bottom on a portrait display), or to another display |
+| **Trackpad navigation** | two fingers pan a zoomed image in every direction; Ctrl + two fingers zoom smoothly around the pointer |
+| **Images that follow their window** | drag a window's edge and the image scales to fill the window (or to fit in it); pan through the part that does not fit |
 | **Only Fiji's windows** | other applications are never moved |
 | **Scriptable** | every command works in macros, for example `run("Layout 3");` |
 
@@ -77,7 +79,7 @@ All three are written in Java 8 for any system Fiji runs on, and their shortcuts
 ## The layouts in detail
 
 - **Ten layout slots, 0 to 9, all editable.** Slots 1 to 6 start with six built-in designs; slots 0, 7, 8 and 9 start empty. You can save over any slot at any time, and **Reset Layout...** brings a built-in design back.
-- **Automatic placement.** Images and tool windows go to their place in the active layout as soon as they open. Images are tiled and zoomed to fill their area.
+- **Automatic placement.** Images and tool windows go to their place in the active layout as soon as they open. Images are tiled and zoomed so that the whole image shows, or so that it fills its area when *Fill the Window* is chosen (see [Trackpad, zoom and resizing](#trackpad-zoom-and-resizing)).
 - **A shortcut for each layout.** Press **Cmd+Option+0** to **9** at any moment to rearrange everything.
 - **Snap zones, like Magnet, but only for Fiji.** Send the active Fiji window to a half, quarter or third of the screen, or to another display.
 - **Compose your own layout.** Arrange the windows by hand and save the arrangement, or type the zones as numbers.
@@ -100,7 +102,7 @@ Without the AutoRun macro the menu commands still work, but the shortcuts and th
 ```bash
 git clone https://github.com/AIHector/Fiji-Window-Layouts.git
 cd Fiji-Window-Layouts
-./test.sh     # 549 headless unit tests
+./test.sh     # 559 headless unit tests
 ./build.sh    # compiles with Fiji's own Java and installs both files
 ```
 
@@ -127,7 +129,7 @@ A layout places *kinds* of windows. A window whose kind has no zone in the activ
 
 How each kind is placed:
 
-- **Images** are tiled in a grid inside their zone, as square as possible (2 images side by side, 3 or 4 in 2×2, 5 or 6 in 3×2, ...). By default (**Image zoom: fill**) each image window takes its whole cell and the image is zoomed to cover it, so there is no empty space; when the image's shape differs from the cell, its edges are cropped (pan with the hand tool or by holding the space bar; ImageJ's small navigator box shows which part is in view). Preferences offer **fit** (the whole image, as large as fits; the window then wraps the image) and **steps** (the whole image at ImageJ's standard zooms). **Plots** are redrawn at the size of their cell instead of being zoomed.
+- **Images** are tiled in a grid inside their zone, as square as possible (2 images side by side, 3 or 4 in 2×2, 5 or 6 in 3×2, ...). Each image window takes its whole cell. By default (**Image zoom: fit**) the whole image is fitted inside it, as large as fits; when the image's shape differs from the cell, part of the window stays empty. With **Fill the Window** (chosen in the image's *Zoom* menu of the Side Toolbar, or in Preferences) the image is zoomed to cover the whole window, so there is no empty space; what does not fit is cut off at the right and the bottom, because the view always starts at the image's top-left corner (pan with two fingers, with the hand tool or by holding the space bar; ImageJ's small navigator box shows which part is in view). With **Fit and Shrink the Window** the whole image is fitted and the window then shrinks around it, so it is smaller than its cell but has no empty space. Preferences also offer **steps** (the whole image at ImageJ's standard zooms). **Plots** are redrawn at the size of their cell instead of being zoomed.
 - **No space between windows.** Zones that touch share their edge to the pixel, the work area starts right under the toolbar, and every built-in layout tiles the whole screen.
 - **Results, Log, Console and ROI Manager** are resized to fill their zone. ROI Manager is never made shorter than 220 px, so its buttons stay usable.
 - **Fixed-size tools** (B&C, Threshold, Channels, SNT) keep their own size and are moved to the top-left corner of their zone.
@@ -288,8 +290,8 @@ All shortcuts use the **modifier**: **Cmd+Option** by default on macOS, **Ctrl+A
 | **←** / **→** | left / right half |
 | **↑** / **↓** | top / bottom half |
 | **U** / **I** / **J** / **K** | top-left / top-right / bottom-left / bottom-right quarter |
-| **S** (or **D**) / **F** / **G** | left / center / right third |
-| **E** / **T** | left / right two-thirds |
+| **S** (or **D**) / **F** / **G** | left / center / right third (top / middle / bottom third on a display taller than wide) |
+| **E** / **R** / **T** | left / center / right two-thirds (top / middle / bottom two-thirds on a display taller than wide) |
 | **C** | center (keeps the size) |
 | **Return** | maximize (the whole work area) |
 | **Delete** | restore the size and place from before the last snap |
@@ -300,19 +302,35 @@ Notes for this Mac:
 
 - **Cmd+Option+D is taken by macOS** by default (show/hide the Dock), so it never reaches Fiji. Use **S** for the left third, or turn the Dock shortcut off in System Settings ▸ Keyboard ▸ Keyboard Shortcuts ▸ Launchpad & Dock.
 - **Spanish keyboard.** Java reads keys by their *position* on a US keyboard. The keys labelled `.`, `,` and the digits work as printed, and so does the key labelled `-` (right of `.`). The `'` key right of `0` also works as *previous layout*. Keys that need Shift or Option on a Spanish keyboard (`=`, `[`, `]`) are matched by position: `=` is the `¡` key, `[` is the `` ` `` key, `]` is the `+` key. The letter alternatives (**.**, **,**, **N**, **P**) are easier to remember.
-- ImageJ's own single-key shortcuts are not affected: a key the plugin uses is consumed before ImageJ sees it. A key the plugin does *not* use, pressed with Cmd+Option, still reaches ImageJ. For example Cmd+Option+`/` used to open *Reslice*, which is why `/` is now also *previous layout*.
+- ImageJ's own single-key shortcuts are not affected: a key the plugin uses is taken before any window receives it, so ImageJ never acts on it too. (Up to 1.0.2, ImageJ also received the key and could reset the image's zoom right after a snap.) A key the plugin does *not* use, pressed with Cmd+Option, still reaches ImageJ. For example Cmd+Option+`/` used to open *Reslice*, which is why `/` is now also *previous layout*.
 
 ## Snap zones
 
 Snapping acts on the **active Fiji window** (the one you clicked last). It never acts on the ImageJ toolbar. Zones are computed on the display the window is on, using the work area, so a snapped window never covers the toolbar.
 
-- **Images** follow the *Image zoom* preference (default: fill the zone completely).
+- **Images**: the window takes the exact zone. By default the whole image is fitted inside it; with *Fill the Window* the image covers the whole zone, starting from its top-left corner; with *Fit and Shrink the Window* the whole image is fitted and the window shrinks around it (it starts at the zone's top-left corner).
+- **On a display taller than wide**, thirds and two-thirds run from top to bottom: left = top, center = middle, right = bottom. Halves and quarters are unchanged.
 - **Resizable windows** (Results, Log, ROI Manager, Console) take the exact zone.
 - **Fixed-size windows** (B&C, Threshold...) are moved to the zone's corner and keep their size.
 - **Restore** (Delete) returns the window to where it was before the last snap or display move.
 - **Next / previous display** keeps the window's relative position, clamped so it stays on the target screen, and keeps an image's zoom. Displays are visited in the order 1 → 2 → 3 → 1.
 
-The same zones are in the menu **Plugins ▸ Window Layouts ▸ Snap Zones** (halves, maximize, restore) and in **Snap Active Window...**, a dialog with all 18 zones.
+The same zones are in the menu **Plugins ▸ Window Layouts ▸ Snap Zones** (halves, maximize, restore) and in **Snap Active Window...**, a dialog with all 19 zones. The Side Toolbar's *Place on Screen* menu lists them with their shortcuts.
+
+## Trackpad, zoom and resizing
+
+These work in every image window (switch them in Preferences):
+
+- **Two-finger panning.** On a zoomed image, two fingers on the trackpad move the image in every direction, like a map. In a stack, up and down still change the slice (as *Edit ▸ Options ▸ Misc.* decides); sideways pans.
+- **Smooth zoom: Ctrl + two fingers.** Any zoom, not only ImageJ's steps; the image point under the pointer stays under it, and the window keeps its size. While the fingers move, the plugin draws the image itself at the exact (sub-pixel) position; when they stop, ImageJ takes over and draws selections and overlays again. A fitted image grows into the window's empty space as you zoom in; zooming out stops where the whole image fits in the window. Shift + scroll keeps ImageJ's own zoom steps.
+- **When an image window is resized** (dragging an edge or a corner), the image can:
+  - **keep the zoom**: ImageJ's behaviour, more or less of the image shows (default);
+  - **fill the window**: the image scales so that it covers the window, keeping the top-left corner of the visible part; for example a window as wide as the screen shows the image across the whole width, and two fingers pan through the part that does not fit. Placements (layouts and snap zones) then fill their zone too, from the image's top-left corner;
+  - **fit the whole image**: the image scales so that all of it shows (ImageJ's *Scale to Fit*);
+  - **fit and shrink the window**: the same when resizing; placements fit the whole image and shrink the window around it.
+
+  The choice is in the Side Toolbar's image menu (*Zoom ▸ When the window is resized*) and in Preferences. When ImageJ itself zooms (+, −, the Zoom menu), it resizes the window around the new zoom; those resizes are left alone.
+- **Pinch.** Java on macOS passes pinch gestures only to Swing windows, and ImageJ's image windows are AWT windows, so the plugin cannot receive a pinch. A window manager such as BetterTouchTool can send ImageJ's **+** and **−** keys for pinch gestures in Fiji only.
 
 ## Automatic placement
 
@@ -332,14 +350,24 @@ When the Side Toolbar plugin shows Fiji's toolbar as a vertical bar, every layou
 
 Verified on 21 October 2026: layouts 1 to 5 with two images, ROI Manager, B&C and Log put every window beside the bar and below the strip; an image opened in the installed Fiji went to (40, 89), next to the 40 px bar and under the 55 px strip, and moved to (74, 89) when the bar grew to two columns. 519 unit tests (now 536), 4 of them for the bar's band.
 
+## Three displays, trackpad and resizing: verification (11 November 2026)
+
+In the installed Fiji 2.18 on macOS with three displays (a laptop screen, a 2560 × 1440 monitor above it with the toolbar, a portrait monitor on the left), with real key presses and mouse drags:
+
+- With *Fill the Window*, every snap shortcut on a 256 × 254 image gave a window of exactly its zone (for example halves 1260 × 1306, top and bottom halves 2520 × 653, thirds 840 × 1306, the whole work area 2520 × 1306), beside the Side Toolbar's bar and below its strip, with the image covering it from its top-left corner. In a separate copy of Fiji, with the default *fit*, each window again took its exact zone and showed the whole of a 1000 × 500 image (125% in a half, 83% in a third, 240% on the whole work area).
+- Dragging the window's right edge to the screen's right side scaled the image with it (to 951%, filling the width); ImageJ's own **+** zoom was not undone.
+- In a separate copy of Fiji: thirds and two-thirds on the portrait monitor ran from top to bottom (1440 × 843 and 1440 × 1686); smooth zoom over 200 steps kept the point under the pointer within 0.3 image pixels and returned exactly to the starting view; two-finger panning moved single images both ways and stacks sideways, while up and down changed the slice.
+
+559 unit tests pass.
+
 ## Multiple displays
 
-Displays are numbered for `@N` and for display moves:
+Each window's display is found from where the window is, not from Java's own record, which can stay wrong after displays sleep, wake or reconnect (up to 1.0.2 this made snaps ignore the Side Toolbar's bars). Displays are numbered for `@N` and for display moves:
 
 - **Display 1** is the display that holds the ImageJ toolbar (applying a layout puts the toolbar at its top-left).
 - **Displays 2, 3, ...** are the others, from left to right (then top to bottom).
 
-On this Mac that gives: **1** = the laptop screen, **2** = the portrait monitor on the left, **3** = the monitor above. A zone on a display that is not connected falls back to display 1 (this rule is in the code but was not tried live).
+For example, with the toolbar on a monitor above a laptop and a portrait monitor on the left: **1** = the monitor with the toolbar, **2** = the portrait monitor, **3** = the laptop screen. A zone on a display that is not connected falls back to display 1 (this rule is in the code but was not tried live).
 
 ## Preferences
 
@@ -349,7 +377,10 @@ On this Mac that gives: **1** = the laptop screen, **2** = the portrait monitor 
 |---|---|---|
 | Shortcut modifier | `cmd+alt` (Cmd+Option) | also `ctrl+alt`, `ctrl+shift`, `alt+shift`. Ctrl+Option would clash with Magnet. |
 | Place windows automatically as they open | on | same as Toggle Automatic Placement |
-| Image zoom | fill | `fill`: no empty space, edges may be cropped; `fit`: whole image, as large as fits; `steps`: whole image at standard zooms |
+| Image zoom | fit | `fit`: whole image, as large as fits; `steps`: whole image at standard zooms. *Fill the Window* (below) makes images fill their zone instead |
+| Images in their windows | keep the zoom | `keep the zoom`, `fill the window`, `fit the whole image`, `fit and shrink the window`: what placements and window resizing do with the image (see [Trackpad, zoom and resizing](#trackpad-zoom-and-resizing)) |
+| Two-finger panning in images | on | pan a zoomed image with two fingers |
+| Smooth zoom with Ctrl + two-finger scroll | on | off: Ctrl + scroll gives ImageJ's zoom steps |
 | Stretch the ImageJ toolbar across the screen | on | the toolbar takes the full width of display 1 |
 | Write a key log to `~/fijilayouts-debug.log` | off | records every Cmd/Option/Ctrl key the plugin sees, for troubleshooting shortcuts. Leave it off otherwise. |
 
@@ -394,7 +425,7 @@ To reset everything, quit Fiji and delete the lines starting with `.fijilayouts.
 | One shortcut does nothing | macOS or another app may own it (Cmd+Option+D = Dock). Turn on the key log in Preferences, press the key, and look at `~/fijilayouts-debug.log`: if the key is not listed, it never reached Fiji. |
 | A window is not placed | Its kind is not in *How windows are grouped*, or the active layout leaves that kind blank, or automatic placement is off. |
 | Tools overlap | Several fixed-size tools sharing one slot cascade over each other by design. On a small screen, close tools you do not need, or use layout 6 with a second display. |
-| Part of an image is hidden | *Image zoom: fill* crops the edges so the window has no empty space. Pan with the hand tool, or choose *fit* in Preferences to always see the whole image. |
+| Part of an image is hidden | *Fill the Window* crops the edges so the window has no empty space. Pan with two fingers or the hand tool, or choose *Fit the Whole Image* or *Keep the Zoom* to see the whole image after a placement. |
 | Fiji says "Plugin configuration error" at startup | A command name in `plugins.config` clashes with another plugin. Rebuild after renaming the entry. |
 
 ## Verification report (14-15 October 2026)
@@ -437,7 +468,9 @@ Everything below was tested on this Mac (Fiji 2.18.0 / ImageJ 1.54p, Java 21, ma
 
 - On the 14-inch screen there is not enough room for every tool at once. B&C, Threshold and Channels cascade in one slot and can overlap a neighbouring window (Threshold is 303 px wide).
 - A window moved to another display and back can end a few pixels from where it started (it is clamped to stay on screen). Delete (restore) returns it exactly.
-- Snapping or rearranging re-zooms images (fill, fit or steps); it does not keep a zoom you set by hand.
+- Snapping or rearranging re-zooms images (fit, steps or fill); it does not keep a zoom you set by hand.
+- During a smooth zoom, selections and overlays are not drawn; they come back as soon as the fingers stop.
+- A resize that starts on a window edge covered by the Side Toolbar's bottom bar does not start: grab the edge above the bar.
 - Fixed-size tools (B&C, Threshold, Channels) cannot be stretched: if their zone is larger than they are, some desktop shows around them.
 - Custom layouts store one rectangle per kind of window, not per individual window.
 
@@ -446,6 +479,8 @@ Everything below was tested on this Mac (Fiji 2.18.0 / ImageJ 1.54p, Java 21, ma
 | Path | Content |
 |---|---|
 | `src/fijilayouts/WindowLayouts_.java` | the plugin |
+| `src/fijilayouts/Pan.java` | two-finger panning and smooth zoom |
+| `src/fijilayouts/Follow.java` | what an image does when its window is resized |
 | `src/plugins.config` | its menu entries |
 | `test/fijilayouts/LayoutTests.java` | headless unit tests (`./test.sh`) |
 | `test/harness/fijilayouts/TestHarness.java` | development-only live-test helper (not installed) |

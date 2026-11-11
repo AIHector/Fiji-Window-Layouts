@@ -224,6 +224,16 @@ public class LayoutTests {
 		eq(new Rectangle(1008, 126, 504, 808), Engine.zoneRect("right-third", WA, 0, 0), "right third");
 		eq(new Rectangle(0, 126, 1008, 808), Engine.zoneRect("left-two-thirds", WA, 0, 0), "left two-thirds");
 		eq(new Rectangle(504, 126, 1008, 808), Engine.zoneRect("right-two-thirds", WA, 0, 0), "right two-thirds");
+		eq(new Rectangle(252, 126, 1008, 808), Engine.zoneRect("center-two-thirds", WA, 0, 0), "center two-thirds");
+		eq("center-two-thirds", Engine.actionFor(KeyEvent.VK_R), "R center two-thirds");
+		Rectangle tall = new Rectangle(-1440, -1547, 1440, 2529);
+		eq(new Rectangle(-1440, -1547, 1440, 843), Engine.zoneRect("left-third", tall, 0, 0), "portrait: left third is the top third");
+		eq(new Rectangle(-1440, -704, 1440, 843), Engine.zoneRect("center-third", tall, 0, 0), "portrait: center third is the middle");
+		eq(new Rectangle(-1440, 139, 1440, 843), Engine.zoneRect("right-third", tall, 0, 0), "portrait: right third is the bottom");
+		eq(new Rectangle(-1440, -1547, 1440, 1686), Engine.zoneRect("left-two-thirds", tall, 0, 0), "portrait: top two-thirds");
+		eq(new Rectangle(-1440, -1126, 1440, 1686), Engine.zoneRect("center-two-thirds", tall, 0, 0), "portrait: middle two-thirds");
+		eq(new Rectangle(-1440, -704, 1440, 1686), Engine.zoneRect("right-two-thirds", tall, 0, 0), "portrait: bottom two-thirds");
+		eq(new Rectangle(-1440, -1547, 720, 2529), Engine.zoneRect("left-half", tall, 0, 0), "portrait: halves unchanged");
 		eq(WA, Engine.zoneRect("maximize", WA, 0, 0), "maximize");
 		eq(new Rectangle(556, 430, 400, 200), Engine.zoneRect("center", WA, 400, 200), "center keeps size");
 		eq(new Rectangle(0, 126, 1512, 808), Engine.zoneRect("center", WA, 3000, 2000), "center clips oversize");
