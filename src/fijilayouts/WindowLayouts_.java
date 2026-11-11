@@ -905,6 +905,7 @@ final class Engine {
 		Follow.noteZoom(win); // this resize is a placement, not the user dragging
 		final Rectangle placed = win.getBounds();
 		final double placedMag = mag;
+		final long placedInput = Pan.inputRevision(win);
 		debug("fit " + titleOf(win) + " cell " + cell + " -> win " + placed + " canvas " + cv.getSize() + " chrome " + chromeW
 			+ "x" + chromeH + " mag " + mag + " mode " + mode);
 		// ImageJ may still adjust a window that has just opened: check shortly after, and place it again if needed
@@ -913,6 +914,7 @@ final class Engine {
 				public void actionPerformed(java.awt.event.ActionEvent e) {
 					ImageCanvas c = win.getCanvas();
 					if (c == null || !win.isVisible() || imp.getWindow() != win) return;
+					if (Pan.inputRevision(win) != placedInput) return; // a later gesture supersedes this placement
 					boolean ok = win.getBounds().equals(placed) && Math.abs(c.getMagnification() - placedMag) < 1e-9;
 					debug("  verify " + (ok ? "ok" : "changed: win " + win.getBounds() + " mag " + c.getMagnification()));
 					if (!ok) fitImage(win, imp, cell, retries - 1);

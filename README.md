@@ -102,8 +102,9 @@ Without the AutoRun macro the menu commands still work, but the shortcuts and th
 ```bash
 git clone https://github.com/AIHector/Fiji-Window-Layouts.git
 cd Fiji-Window-Layouts
-./test.sh     # 561 headless unit tests
-./build.sh    # compiles with Fiji's own Java and installs both files
+./test.sh     # layout and zoom boundary/repaint checks
+./build.sh    # compiles locally with Fiji's own Java; does not install
+./build.sh --install  # installs both files; close Fiji first
 ```
 
 `build.sh` takes the Fiji folder as an optional argument (`./build.sh /path/to/Fiji`).
@@ -323,7 +324,7 @@ The same zones are in the menu **Plugins ▸ Window Layouts ▸ Snap Zones** (ha
 These work in every image window (switch them in Preferences):
 
 - **Two-finger panning.** On a zoomed image, two fingers on the trackpad move the image in every direction, like a map. This includes stacks and multichannel images: while the image is zoomed in, two fingers pan, and **Option + two fingers** change the slice or channel. When the whole image is visible (nothing to pan), up and down change the slice or channel as in ImageJ (as *Edit ▸ Options ▸ Misc.* decides).
-- **Smooth zoom: Ctrl + two fingers.** Any zoom, not only ImageJ's steps; the image point under the pointer stays under it, and the window keeps its size. While the fingers move, the plugin draws the image itself at the exact (sub-pixel) position; when they stop, ImageJ takes over and draws selections and overlays again. A fitted image grows into the window's empty space as you zoom in; zooming out stops where the whole image fits in the window, or, with *Fill the Window*, where the image still covers the window (press **Cmd+Option+X** to switch to Fit and see the whole image). Shift + scroll keeps ImageJ's own zoom steps.
+- **Smooth zoom: Ctrl + two fingers.** Magnification and view position change continuously around the pointer. The view retains its fractional image-pixel position after scrolling stops: there is no timed handover, rounding step or finishing animation. The image canvas stays in its fitted area, including during an unchanged-window layout. ImageJ’s selection and overlay drawing uses the same fractional coordinate mapping. Zooming out stops at the scale that covers the current canvas. Genuine window resizing and explicit Fit/Fill commands still apply their requested new view. Shift + scroll keeps ImageJ’s own zoom steps.
 - **When an image window is resized** (dragging an edge or a corner), the image can:
   - **keep the zoom**: ImageJ's behaviour, more or less of the image shows (default);
   - **fill the window**: the image scales so that it covers the window, keeping the top-left corner of the visible part; for example a window as wide as the screen shows the image across the whole width, and two fingers pan through the part that does not fit. Placements (layouts and snap zones) then fill their zone too, from the image's top-left corner;
@@ -475,7 +476,7 @@ Everything below was tested on this Mac (Fiji 2.18.0 / ImageJ 1.54p, Java 21, ma
 - On the 14-inch screen there is not enough room for every tool at once. B&C, Threshold and Channels cascade in one slot and can overlap a neighbouring window (Threshold is 303 px wide).
 - A window moved to another display and back can end a few pixels from where it started (it is clamped to stay on screen). Delete (restore) returns it exactly.
 - Snapping or rearranging re-zooms images (fit, steps or fill); it does not keep a zoom you set by hand.
-- During a smooth zoom, selections and overlays are not drawn; they come back as soon as the fingers stop.
+- Fractional zoom is applied to standard ImageJ image canvases. Specialized viewers with their own canvas or layout keep their own zoom handling. Native image operations that read the source rectangle directly still see ImageJ’s integer compatibility rectangle; standard mouse tools use the fractional coordinate-conversion methods. The adapter uses ImageJ internals for native overlay drawing and is verified with ImageJ 1.54p; other runtimes require validation.
 - A resize that starts on a window edge covered by the Side Toolbar's bottom bar does not start: grab the edge above the bar.
 - Fixed-size tools (B&C, Threshold, Channels) cannot be stretched: if their zone is larger than they are, some desktop shows around them.
 - Custom layouts store one rectangle per kind of window, not per individual window.
@@ -486,6 +487,7 @@ Everything below was tested on this Mac (Fiji 2.18.0 / ImageJ 1.54p, Java 21, ma
 |---|---|
 | `src/fijilayouts/WindowLayouts_.java` | the plugin |
 | `src/fijilayouts/Pan.java` | two-finger panning and smooth zoom |
+| `src/fijilayouts/SmoothCanvas.java` | persistent fractional rendering, tool coordinates and native overlay drawing |
 | `src/fijilayouts/Follow.java` | what an image does when its window is resized |
 | `src/plugins.config` | its menu entries |
 | `test/fijilayouts/LayoutTests.java` | headless unit tests (`./test.sh`) |
@@ -498,3 +500,11 @@ Everything below was tested on this Mac (Fiji 2.18.0 / ImageJ 1.54p, Java 21, ma
 ## License
 
 MIT License, © 2026 Ettore Colombo. See [LICENSE](LICENSE).
+
+## Version 1.0.8
+
+Ctrl-scroll zoom retains its fractional view position throughout scrolling and after it stops, keeping the image steady under the pointer. The fitted canvas stays in place during unchanged-window layouts. Native mouse tools and overlays use the same view coordinates, and an obsolete placement retry cannot override a later gesture.
+
+Verified with ImageJ 1.54p on macOS, including a real-trackpad acceptance check. Automated validation covers 561 existing layout checks, 24 zoom boundary/repaint checks, 27 image-window interaction checks and 3 checks with Undo History. Windows, Linux and other ImageJ runtimes remain unverified.
+
+`./build.sh` builds locally without installing. `./test.sh` runs the existing layout and zoom boundary checks; `./test-integration.sh` checks wheel dispatch, fractional drawing, native tools, three-channel stacks and Fit/Fill interactions in a separate ImageJ with isolated preferences. `./test-combined.sh` checks the installed Undo History together with the new canvas. Use `./build.sh /path/to/Fiji --install` only with that Fiji closed.
