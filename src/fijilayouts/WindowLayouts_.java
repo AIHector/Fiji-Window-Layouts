@@ -54,6 +54,8 @@ public class WindowLayouts_ implements ij.plugin.PlugIn {
 		if (arg.matches("[0-9]")) {
 			final int n = Integer.parseInt(arg);
 			SwingUtilities.invokeLater(new Runnable() { public void run() { Engine.applyLayout(n); } });
+		} else if (arg.equals("fillfit")) {
+			SwingUtilities.invokeLater(new Runnable() { public void run() { Engine.switchFillFit(); } });
 		} else if (arg.startsWith("follow:")) {
 			Follow.setMode(arg.substring(7));
 		} else if (arg.startsWith("snap:")) {
@@ -1050,6 +1052,7 @@ final class Engine {
 					debug("ERROR " + t + " at " + (t.getStackTrace().length > 0 ? t.getStackTrace()[0] : "")); }
 			}
 		};
+		addZoomToImagePopup();
 		// the shortcuts are taken before any window sees them: ImageJ must not also act on the same key
 		// (with an AWTEventListener, a consumed key still reached ImageJ, which then changed the image's zoom)
 		java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(new java.awt.KeyEventDispatcher() {
@@ -1186,6 +1189,7 @@ final class Engine {
 			case KeyEvent.VK_R: return "center-two-thirds";
 			case KeyEvent.VK_T: return "right-two-thirds";
 			case KeyEvent.VK_C: return "center";
+			case KeyEvent.VK_X: return "fill-fit"; // not Z: Cmd+Option+Z is Undo History's redo
 			case KeyEvent.VK_ENTER: return "maximize";
 			case KeyEvent.VK_BACK_SPACE: case KeyEvent.VK_DELETE: return "restore";
 			case KeyEvent.VK_CLOSE_BRACKET: case KeyEvent.VK_N: return "next-display";
@@ -1238,12 +1242,103 @@ final class Engine {
 		if (IJ.altKeyDown()) IJ.setKeyUp(KeyEvent.VK_ALT);
 	}
 
+	/**
+	 * Cmd+Option+X: switches between "Fill the Window" and "Fit the Whole Image" and applies it at once to the
+	 * active image, in its current window.
+	 */
+	static void switchFillFit() {
+		String next = Follow.mode().equals("fill") ? "fit" : "fill";
+		Follow.setMode(next);
+		refitActiveImage();
+		IJ.showStatus("Window Layouts: " + (next.equals("fill") ? "Fill the Window" : "Fit the Whole Image") + " (Cmd+Option+X switches)");
+	}
+
+	/** Re-zooms the active image for its current window with the current mode (fill, fit, or fit and shrink). */
+	static void refitActiveImage() {
+		ImagePlus imp = ij.WindowManager.getCurrentImage();
+		if (imp == null || imp.getWindow() == null) return;
+		ImageWindow w = imp.getWindow();
+		fitImage(w, imp, w.getBounds());
+	}
+
+	/** Adds a "Zoom" menu to ImageJ's right-click menu on images (once). */
+	static void addZoomToImagePopup() {
+		java.awt.PopupMenu pm = ij.Menus.getPopupMenu();
+		if (pm == null) return;
+		for (int i = 0; i < pm.getItemCount(); i++) if (pm.getItem(i) instanceof ZoomMenu) return;
+		pm.addSeparator();
+		pm.add(new ZoomMenu());
+	}
+
+	/** The right-click menu's Zoom: ImageJ's zoom commands, preset zooms, and how images sit in their windows. */
+	static final class ZoomMenu extends java.awt.Menu {
+		final java.awt.CheckboxMenuItem[] modes = new java.awt.CheckboxMenuItem[Follow.MODES.length];
+		ZoomMenu() {
+			super("Zoom");
+			cmd("Zoom In", "In [+]");
+			cmd("Zoom Out", "Out [-]");
+			cmd("View 100%", "View 100%");
+			cmd("Original Scale", "Original Scale");
+			cmd("To Selection", "To Selection");
+			addSeparator();
+			for (final int pct : new int[] {25, 50, 200, 400}) {
+				java.awt.MenuItem it = new java.awt.MenuItem(pct + "%");
+				it.addActionListener(e -> zoomTo(pct / 100.0));
+				add(it);
+			}
+			addSeparator();
+			java.awt.MenuItem now = new java.awt.MenuItem("Switch Fill / Fit (Cmd+Option+X)");
+			now.addActionListener(e -> switchFillFit());
+			add(now);
+			String[] labels = {"Keep the Zoom", "Fill the Window", "Fit the Whole Image", "Fit and Shrink the Window"};
+			for (int i = 0; i < modes.length; i++) {
+				final String m = Follow.MODES[i];
+				modes[i] = new java.awt.CheckboxMenuItem(labels[i], m.equals(Follow.mode()));
+				modes[i].addItemListener(e -> { Follow.setMode(m); if (!m.equals("keep")) refitActiveImage(); });
+				add(modes[i]);
+			}
+			instance = this;
+		}
+		void cmd(String label, final String command) {
+			java.awt.MenuItem it = new java.awt.MenuItem(label);
+			it.addActionListener(e -> IJ.run(command));
+			add(it);
+		}
+		/** Ticks the current mode (called whenever the mode changes). */
+		void sync() {
+			for (int i = 0; i < modes.length; i++) modes[i].setState(Follow.MODES[i].equals(Follow.mode()));
+		}
+	}
+	static ZoomMenu instance;
+
+	/** Sets the active image's zoom, keeping the top-left corner of the visible part; the window keeps its size. */
+	static void zoomTo(double mag) {
+		ImagePlus imp = ij.WindowManager.getCurrentImage();
+		if (imp == null || imp.getWindow() == null) return;
+		ImageWindow w = imp.getWindow();
+		ImageCanvas c = w.getCanvas();
+		releaseAlt();
+		java.awt.Dimension border = chrome(w);
+		int iw = imp.getWidth(), ih = imp.getHeight();
+		int cw = Math.min(w.getWidth() - border.width, (int) Math.floor(iw * mag));
+		int ch = Math.min(w.getHeight() - border.height, (int) Math.floor(ih * mag));
+		Rectangle src = c.getSrcRect();
+		int sw = Math.max(1, Math.min(iw, (int) Math.round(cw / mag))), sh = Math.max(1, Math.min(ih, (int) Math.round(ch / mag)));
+		c.setSize(Math.max(cw, 1), Math.max(ch, 1));
+		c.setSourceRect(new Rectangle(Math.max(0, Math.min(iw - sw, src.x)), Math.max(0, Math.min(ih - sh, src.y)), sw, sh));
+		c.setMagnification(mag);
+		w.validate();
+		w.repaint();
+		Follow.noteZoom(w);
+	}
+
 	static void runAction(String action) {
 		releaseAlt();
 		if (action.startsWith("layout:")) applyLayout(Integer.parseInt(action.substring(7)));
 		else if (action.equals("toggle")) toggleAuto();
 		else if (action.equals("next")) applyLayout(nextExisting(activeLayout(), 1));
 		else if (action.equals("previous")) applyLayout(nextExisting(activeLayout(), -1));
+		else if (action.equals("fill-fit")) switchFillFit();
 		else snap(action);
 	}
 
@@ -1438,6 +1533,7 @@ final class Engine {
 		gd.addChoice("Images in their windows", followLabels, followLabels[java.util.Arrays.asList(Follow.MODES).indexOf(Follow.mode())]);
 		gd.addCheckbox("Two-finger panning in images (trackpad)", Pan.enabled());
 		gd.addCheckbox("Smooth zoom with Ctrl + two-finger scroll (around the cursor)", Pan.smoothZoom());
+		gd.addCheckbox("In stacks, two fingers pan a zoomed image (Option + two fingers change the slice)", Pan.stackPan());
 		gd.addCheckbox("Write a key log to ~/fijilayouts-debug.log (troubleshooting)", debugEnabled());
 		gd.addMessage("Image zoom: fill = the image covers its whole area (edges may be cropped; pan with the hand tool),\n"
 			+ "fit = the whole image, as large as fits; steps = the whole image at ImageJ's standard zooms.\n"
@@ -1455,6 +1551,7 @@ final class Engine {
 		String follow = Follow.MODES[gd.getNextChoiceIndex()];
 		Prefs.set("fijilayouts.trackpadpan", gd.getNextBoolean());
 		Prefs.set("fijilayouts.smoothzoom", gd.getNextBoolean());
+		Prefs.set("fijilayouts.stackpan", gd.getNextBoolean());
 		Prefs.set("fijilayouts.debug", gd.getNextBoolean());
 		Follow.setMode(follow);
 		persist();
@@ -1477,6 +1574,7 @@ final class Engine {
 			+ "<tr><td><b>U I J K</b></td><td>quarters (top-left, top-right, bottom-left, bottom-right)</td></tr>"
 			+ "<tr><td><b>S (or D) F G</b></td><td>left, center, right third (on macOS, Cmd+Alt+D hides the Dock: use S) (top, middle, bottom on a portrait display)</td></tr>"
 			+ "<tr><td><b>E R T</b></td><td>left, center, right two-thirds (top, middle, bottom on a portrait display)</td></tr>"
+			+ "<tr><td><b>X</b></td><td>switch images between Fill the Window and Fit the Whole Image (applies to the active image at once)</td></tr>"
 			+ "<tr><td><b>C</b></td><td>center, <b>Return</b> maximize, <b>Delete</b> restore</td></tr>"
 			+ "<tr><td><b>N</b> / <b>P</b></td><td>move to next / previous display (also ] / [)</td></tr>"
 			+ "</table><br>Active layout: " + activeLayout() + ". Automatic placement: " + (autoEnabled() ? "on" : "off") + ".<br>"

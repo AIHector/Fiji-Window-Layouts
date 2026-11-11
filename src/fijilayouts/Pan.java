@@ -50,6 +50,9 @@ final class Pan implements MouseWheelListener {
 
 	static boolean smoothZoom() { return Prefs.get("fijilayouts.smoothzoom", true); }
 
+	/** In a stack, whether two fingers pan a zoomed image (Option + two fingers then change the slice). */
+	static boolean stackPan() { return Prefs.get("fijilayouts.stackpan", true); }
+
 	/** How strongly scrolling zooms: the magnification changes by e^(ZOOM_RATE x rotation). */
 	static final double ZOOM_RATE = 0.04;
 	static final double MAX_MAG = 32;
@@ -89,10 +92,14 @@ final class Pan implements MouseWheelListener {
 		if (ic == null || imp == null) return false;
 		// Java reports sideways scrolling as the wheel with Shift: here Shift is not held, so it is the trackpad
 		boolean sideways = e.isShiftDown();
-		if (!sideways && win instanceof StackWindow && imp.getStackSize() > 1 && Prefs.mouseWheelStackScrolling)
-			return false; // up and down change the slice in a stack, as ImageJ users expect
 		Rectangle src = ic.getSrcRect();
 		int iw = imp.getWidth(), ih = imp.getHeight();
+		if (!sideways && win instanceof StackWindow && imp.getStackSize() > 1) {
+			// in a stack, up and down change the slice (or channel) as ImageJ users expect, except while the image
+			// is zoomed in and can move up or down: then two fingers pan, and Option + two fingers change the slice
+			boolean option = e.isAltDown();
+			if (option || !stackPan() || src.height >= ih) return false;
+		}
 		boolean canMove = sideways ? src.width < iw : src.height < ih;
 		// the whole image is visible along this direction: nothing to move (and nothing for ImageJ to do either
 		// when the whole image is visible both ways)
@@ -139,12 +146,17 @@ final class Pan implements MouseWheelListener {
 			if (lastSrc == null || !src.equals(lastSrc) || mag != lastMag) { viewX = src.x; viewY = src.y; viewMag = mag; }
 			zooming = true;
 		}
-		double minMag = Math.min(aw / (double) iw, ah / (double) ih); // the whole image fits in the window
+		// zooming out stops where the whole image fits in the window; with "Fill the Window", where the image still
+		// covers the window (fill means no empty space: switch to Fit, Cmd+Option+X, to see the whole image)
+		double minMag = Follow.mode().equals("fill") ? Math.max(aw / (double) iw, ah / (double) ih)
+			: Math.min(aw / (double) iw, ah / (double) ih);
 		// the same direction as ImageJ's own Ctrl + scroll zoom
 		double next = viewMag * Math.exp(-e.getPreciseWheelRotation() * ZOOM_RATE);
 		next = Math.max(Math.min(minMag, viewMag), Math.min(MAX_MAG, next));
-		java.awt.Point p = javax.swing.SwingUtilities.convertPoint(e.getComponent(), e.getPoint(), ic);
-		double px = Math.max(0, Math.min(cw, p.x)), py = Math.max(0, Math.min(ch, p.y));
+		// the pointer in window coordinates: the canvas may move inside the window when its size changes
+		java.awt.Point pw = javax.swing.SwingUtilities.convertPoint(e.getComponent(), e.getPoint(), win);
+		java.awt.Point at = ic.getLocation();
+		double px = Math.max(0, Math.min(cw, pw.x - at.x)), py = Math.max(0, Math.min(ch, pw.y - at.y));
 		// the image point under the cursor stays under it
 		double ox = viewX + px / viewMag, oy = viewY + py / viewMag;
 		viewMag = next;
@@ -153,8 +165,12 @@ final class Pan implements MouseWheelListener {
 		if (nw != cw || nh != ch) {
 			ic.setSize(Math.max(nw, 1), Math.max(nh, 1));
 			win.validate();
+			win.repaint(); // the part of the window the canvas no longer covers
 			cw = ic.getWidth();
 			ch = ic.getHeight();
+			at = ic.getLocation();
+			px = Math.max(0, Math.min(cw, pw.x - at.x));
+			py = Math.max(0, Math.min(ch, pw.y - at.y));
 		}
 		viewX = clamp(ox - px / next, iw - cw / next);
 		viewY = clamp(oy - py / next, ih - ch / next);

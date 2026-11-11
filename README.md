@@ -102,7 +102,7 @@ Without the AutoRun macro the menu commands still work, but the shortcuts and th
 ```bash
 git clone https://github.com/AIHector/Fiji-Window-Layouts.git
 cd Fiji-Window-Layouts
-./test.sh     # 559 headless unit tests
+./test.sh     # 561 headless unit tests
 ./build.sh    # compiles with Fiji's own Java and installs both files
 ```
 
@@ -293,6 +293,7 @@ All shortcuts use the **modifier**: **Cmd+Option** by default on macOS, **Ctrl+A
 | **S** (or **D**) / **F** / **G** | left / center / right third (top / middle / bottom third on a display taller than wide) |
 | **E** / **R** / **T** | left / center / right two-thirds (top / middle / bottom two-thirds on a display taller than wide) |
 | **C** | center (keeps the size) |
+| **X** | switch images between *Fill the Window* and *Fit the Whole Image*, applied at once to the active image |
 | **Return** | maximize (the whole work area) |
 | **Delete** | restore the size and place from before the last snap |
 | **N** or **]** | move the window to the next display |
@@ -321,8 +322,8 @@ The same zones are in the menu **Plugins ▸ Window Layouts ▸ Snap Zones** (ha
 
 These work in every image window (switch them in Preferences):
 
-- **Two-finger panning.** On a zoomed image, two fingers on the trackpad move the image in every direction, like a map. In a stack, up and down still change the slice (as *Edit ▸ Options ▸ Misc.* decides); sideways pans.
-- **Smooth zoom: Ctrl + two fingers.** Any zoom, not only ImageJ's steps; the image point under the pointer stays under it, and the window keeps its size. While the fingers move, the plugin draws the image itself at the exact (sub-pixel) position; when they stop, ImageJ takes over and draws selections and overlays again. A fitted image grows into the window's empty space as you zoom in; zooming out stops where the whole image fits in the window. Shift + scroll keeps ImageJ's own zoom steps.
+- **Two-finger panning.** On a zoomed image, two fingers on the trackpad move the image in every direction, like a map. This includes stacks and multichannel images: while the image is zoomed in, two fingers pan, and **Option + two fingers** change the slice or channel. When the whole image is visible (nothing to pan), up and down change the slice or channel as in ImageJ (as *Edit ▸ Options ▸ Misc.* decides).
+- **Smooth zoom: Ctrl + two fingers.** Any zoom, not only ImageJ's steps; the image point under the pointer stays under it, and the window keeps its size. While the fingers move, the plugin draws the image itself at the exact (sub-pixel) position; when they stop, ImageJ takes over and draws selections and overlays again. A fitted image grows into the window's empty space as you zoom in; zooming out stops where the whole image fits in the window, or, with *Fill the Window*, where the image still covers the window (press **Cmd+Option+X** to switch to Fit and see the whole image). Shift + scroll keeps ImageJ's own zoom steps.
 - **When an image window is resized** (dragging an edge or a corner), the image can:
   - **keep the zoom**: ImageJ's behaviour, more or less of the image shows (default);
   - **fill the window**: the image scales so that it covers the window, keeping the top-left corner of the visible part; for example a window as wide as the screen shows the image across the whole width, and two fingers pan through the part that does not fit. Placements (layouts and snap zones) then fill their zone too, from the image's top-left corner;
@@ -330,6 +331,7 @@ These work in every image window (switch them in Preferences):
   - **fit and shrink the window**: the same when resizing; placements fit the whole image and shrink the window around it.
 
   The choice is in the Side Toolbar's image menu (*Zoom ▸ When the window is resized*) and in Preferences. When ImageJ itself zooms (+, −, the Zoom menu), it resizes the window around the new zoom; those resizes are left alone.
+- **Right-click menu.** ImageJ's right-click menu on an image has a **Zoom** submenu: zoom in and out, 100%, original scale, to selection, 25%, 50%, 200% and 400% (the window keeps its size), *Switch Fill / Fit*, and the four ways images sit in their windows.
 - **Pinch.** Java on macOS passes pinch gestures only to Swing windows, and ImageJ's image windows are AWT windows, so the plugin cannot receive a pinch. A window manager such as BetterTouchTool can send ImageJ's **+** and **−** keys for pinch gestures in Fiji only.
 
 ## Automatic placement
@@ -356,9 +358,11 @@ In the installed Fiji 2.18 on macOS with three displays (a laptop screen, a 2560
 
 - With *Fill the Window*, every snap shortcut on a 256 × 254 image gave a window of exactly its zone (for example halves 1260 × 1306, top and bottom halves 2520 × 653, thirds 840 × 1306, the whole work area 2520 × 1306), beside the Side Toolbar's bar and below its strip, with the image covering it from its top-left corner. In a separate copy of Fiji, with the default *fit*, each window again took its exact zone and showed the whole of a 1000 × 500 image (125% in a half, 83% in a third, 240% on the whole work area).
 - Dragging the window's right edge to the screen's right side scaled the image with it (to 951%, filling the width); ImageJ's own **+** zoom was not undone.
+- In a separate copy of Fiji (version 1.0.4): with *Fill the Window*, zooming out stopped where the image still covered the window; Cmd+Option+X switched the image to Fit in the same window and back; zooming in and out in Fit kept the point under the pointer within 0.5 image pixels; the right-click menu ended with the Zoom submenu.
+- In a separate copy of Fiji, on a 2000 × 2000 image with three channels (version 1.0.4): zoomed in, two fingers up and down panned without changing the channel; Option + two fingers changed the channel; with the whole image visible, up and down changed the channel.
 - In a separate copy of Fiji: thirds and two-thirds on the portrait monitor ran from top to bottom (1440 × 843 and 1440 × 1686); smooth zoom over 200 steps kept the point under the pointer within 0.3 image pixels and returned exactly to the starting view; two-finger panning moved single images both ways and stacks sideways, while up and down changed the slice.
 
-559 unit tests pass.
+561 unit tests pass.
 
 ## Multiple displays
 
@@ -381,6 +385,7 @@ For example, with the toolbar on a monitor above a laptop and a portrait monitor
 | Images in their windows | keep the zoom | `keep the zoom`, `fill the window`, `fit the whole image`, `fit and shrink the window`: what placements and window resizing do with the image (see [Trackpad, zoom and resizing](#trackpad-zoom-and-resizing)) |
 | Two-finger panning in images | on | pan a zoomed image with two fingers |
 | Smooth zoom with Ctrl + two-finger scroll | on | off: Ctrl + scroll gives ImageJ's zoom steps |
+| In stacks, two fingers pan a zoomed image | on | Option + two fingers then change the slice or channel; off: up and down always change the slice, as in ImageJ |
 | Stretch the ImageJ toolbar across the screen | on | the toolbar takes the full width of display 1 |
 | Write a key log to `~/fijilayouts-debug.log` | off | records every Cmd/Option/Ctrl key the plugin sees, for troubleshooting shortcuts. Leave it off otherwise. |
 

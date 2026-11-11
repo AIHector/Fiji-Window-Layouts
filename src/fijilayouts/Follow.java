@@ -32,6 +32,7 @@ final class Follow extends ComponentAdapter {
 		Prefs.set("fijilayouts.follow", m);
 		Engine.persist();
 		applyAll();
+		if (Engine.instance != null) Engine.instance.sync();
 	}
 
 	/** Watches an image window's size (once per window) and applies the current mode to it. */

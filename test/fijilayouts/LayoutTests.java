@@ -226,6 +226,8 @@ public class LayoutTests {
 		eq(new Rectangle(504, 126, 1008, 808), Engine.zoneRect("right-two-thirds", WA, 0, 0), "right two-thirds");
 		eq(new Rectangle(252, 126, 1008, 808), Engine.zoneRect("center-two-thirds", WA, 0, 0), "center two-thirds");
 		eq("center-two-thirds", Engine.actionFor(KeyEvent.VK_R), "R center two-thirds");
+		eq("fill-fit", Engine.actionFor(KeyEvent.VK_X), "X switches Fill / Fit");
+		eq(null, Engine.actionFor(KeyEvent.VK_Z), "Z stays free: Cmd+Option+Z is Undo History's redo");
 		Rectangle tall = new Rectangle(-1440, -1547, 1440, 2529);
 		eq(new Rectangle(-1440, -1547, 1440, 843), Engine.zoneRect("left-third", tall, 0, 0), "portrait: left third is the top third");
 		eq(new Rectangle(-1440, -704, 1440, 843), Engine.zoneRect("center-third", tall, 0, 0), "portrait: center third is the middle");
