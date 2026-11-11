@@ -327,7 +327,7 @@ These work in every image window (switch them in Preferences):
 - **When an image window is resized** (dragging an edge or a corner), the image can:
   - **keep the zoom**: ImageJ's behaviour, more or less of the image shows (default);
   - **fill the window**: the image scales so that it covers the window, keeping the top-left corner of the visible part; for example a window as wide as the screen shows the image across the whole width, and two fingers pan through the part that does not fit. Placements (layouts and snap zones) then fill their zone too, from the image's top-left corner;
-  - **fit the whole image**: the image scales so that all of it shows (ImageJ's *Scale to Fit*);
+  - **fit the whole image**: the image scales so that all of it shows;
   - **fit and shrink the window**: the same when resizing; placements fit the whole image and shrink the window around it.
 
   The choice is in the Side Toolbar's image menu (*Zoom ▸ When the window is resized*) and in Preferences. When ImageJ itself zooms (+, −, the Zoom menu), it resizes the window around the new zoom; those resizes are left alone.
@@ -358,6 +358,7 @@ In the installed Fiji 2.18 on macOS with three displays (a laptop screen, a 2560
 
 - With *Fill the Window*, every snap shortcut on a 256 × 254 image gave a window of exactly its zone (for example halves 1260 × 1306, top and bottom halves 2520 × 653, thirds 840 × 1306, the whole work area 2520 × 1306), beside the Side Toolbar's bar and below its strip, with the image covering it from its top-left corner. In a separate copy of Fiji, with the default *fit*, each window again took its exact zone and showed the whole of a 1000 × 500 image (125% in a half, 83% in a third, 240% on the whole work area).
 - Dragging the window's right edge to the screen's right side scaled the image with it (to 951%, filling the width); ImageJ's own **+** zoom was not undone.
+- In a separate copy of Fiji (version 1.0.5): with *Fit the Whole Image*, a zoom with Ctrl + two fingers stayed where it was left (up to 1.0.4 this mode used ImageJ's *Scale to Fit*, which re-fitted the image after every zoom).
 - In a separate copy of Fiji (version 1.0.4): with *Fill the Window*, zooming out stopped where the image still covered the window; Cmd+Option+X switched the image to Fit in the same window and back; zooming in and out in Fit kept the point under the pointer within 0.5 image pixels; the right-click menu ended with the Zoom submenu.
 - In a separate copy of Fiji, on a 2000 × 2000 image with three channels (version 1.0.4): zoomed in, two fingers up and down panned without changing the channel; Option + two fingers changed the channel; with the whole image visible, up and down changed the channel.
 - In a separate copy of Fiji: thirds and two-thirds on the portrait monitor ran from top to bottom (1440 × 843 and 1440 × 1686); smooth zoom over 200 steps kept the point under the pointer within 0.3 image pixels and returned exactly to the starting view; two-finger panning moved single images both ways and stacks sideways, while up and down changed the slice.

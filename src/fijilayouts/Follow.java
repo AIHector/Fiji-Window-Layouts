@@ -15,7 +15,7 @@ import javax.swing.SwingUtilities;
  * What an image does when you resize its window by dragging an edge or a corner:
  * "keep" (ImageJ's behaviour: the zoom stays, more or less of the image shows),
  * "fill" (the image scales so that it fills the window; pan to see the parts that do not fit), or
- * "fit" (the image scales so that all of it shows: ImageJ's own Scale to Fit), or
+ * "fit" (the image scales so that all of it shows), or
  * "shrink" (as "fit" when resizing; placements fit the whole image and shrink the window around it).
  */
 final class Follow extends ComponentAdapter {
@@ -76,12 +76,14 @@ final class Follow extends ComponentAdapter {
 	void applyMode() {
 		ImageCanvas c = win.getCanvas();
 		if (c == null) return;
-		c.setScaleToFit(mode().equals("fit") || mode().equals("shrink"));
+		// ImageJ's own Scale to Fit re-fits the image whenever the window is laid out again, which undid every zoom
+		// (smooth zoom): fitting on resize is done here instead
+		c.setScaleToFit(false);
 		lastMag = c.getMagnification();
 	}
 
 	public void componentResized(ComponentEvent e) {
-		if (mode().equals("fill")) SwingUtilities.invokeLater(this::fill);
+		if (!mode().equals("keep")) SwingUtilities.invokeLater(this::fill);
 	}
 
 	/** Zooms the image so that it fills the window, keeping the top-left corner of the visible part. */
@@ -90,7 +92,7 @@ final class Follow extends ComponentAdapter {
 		ImagePlus imp = win.getImagePlus();
 		if (c == null || imp == null || !win.isVisible()) return;
 		double mag = c.getMagnification();
-		// ImageJ zooming (keys, menu, pinch) resizes the window around the new zoom: leave that alone
+		// ImageJ zooming (keys, menu) resizes the window around the new zoom: leave that alone
 		// (it may resize several times for one zoom: the resizes in the next moments are left alone too)
 		long now = System.currentTimeMillis();
 		if (Math.abs(mag - lastMag) > 1e-9) { lastMag = mag; quietUntil = now + 400; return; }
@@ -99,7 +101,13 @@ final class Follow extends ComponentAdapter {
 		java.awt.Dimension border = Engine.chrome(win);
 		int cw = win.getWidth() - border.width, ch = win.getHeight() - border.height, iw = imp.getWidth(), ih = imp.getHeight();
 		if (cw <= 0 || ch <= 0) return;
-		double next = Math.max(cw / (double) iw, ch / (double) ih);
+		// fill: the image covers the window; fit (and fit and shrink): the whole image shows in it
+		boolean fill = mode().equals("fill");
+		double next = fill ? Math.max(cw / (double) iw, ch / (double) ih) : Math.min(cw / (double) iw, ch / (double) ih);
+		if (!fill) {
+			cw = Math.min(cw, (int) Math.floor(iw * next));
+			ch = Math.min(ch, (int) Math.floor(ih * next));
+		}
 		// the visible part keeps its top-left corner (a placement shows the image from its top-left corner)
 		Rectangle src = c.getSrcRect();
 		int sw = Math.max(1, Math.min(iw, (int) Math.round(cw / next))), sh = Math.max(1, Math.min(ih, (int) Math.round(ch / next)));

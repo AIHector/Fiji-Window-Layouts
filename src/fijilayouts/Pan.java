@@ -131,6 +131,13 @@ final class Pan implements MouseWheelListener {
 	 */
 	boolean zoom(MouseWheelEvent e) {
 		if (e.isShiftDown()) return true; // sideways movement while zooming: ignored
+		// the same direction as ImageJ's own Ctrl + scroll zoom
+		java.awt.Point pw = javax.swing.SwingUtilities.convertPoint(e.getComponent(), e.getPoint(), win);
+		return zoomAt(Math.exp(-e.getPreciseWheelRotation() * ZOOM_RATE), pw);
+	}
+
+	/** Zooms by a factor around a point given in the window's coordinates (Ctrl + scroll). */
+	boolean zoomAt(double factor, java.awt.Point pw) {
 		ImageCanvas ic = win.getCanvas();
 		ImagePlus imp = win.getImagePlus();
 		if (ic == null || imp == null || win instanceof ij.gui.PlotWindow) return false;
@@ -150,11 +157,9 @@ final class Pan implements MouseWheelListener {
 		// covers the window (fill means no empty space: switch to Fit, Cmd+Option+X, to see the whole image)
 		double minMag = Follow.mode().equals("fill") ? Math.max(aw / (double) iw, ah / (double) ih)
 			: Math.min(aw / (double) iw, ah / (double) ih);
-		// the same direction as ImageJ's own Ctrl + scroll zoom
-		double next = viewMag * Math.exp(-e.getPreciseWheelRotation() * ZOOM_RATE);
+		double next = viewMag * factor;
 		next = Math.max(Math.min(minMag, viewMag), Math.min(MAX_MAG, next));
 		// the pointer in window coordinates: the canvas may move inside the window when its size changes
-		java.awt.Point pw = javax.swing.SwingUtilities.convertPoint(e.getComponent(), e.getPoint(), win);
 		java.awt.Point at = ic.getLocation();
 		double px = Math.max(0, Math.min(cw, pw.x - at.x)), py = Math.max(0, Math.min(ch, pw.y - at.y));
 		// the image point under the cursor stays under it
