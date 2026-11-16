@@ -37,6 +37,7 @@ final class Follow extends ComponentAdapter {
 
 	/** Watches an image window's size (once per window) and applies the current mode to it. */
 	static void install(ImageWindow w) {
+		if (!ImageWindows.isDataWindow(w)) return;
 		Follow f = null;
 		for (ComponentListener l : w.getComponentListeners()) if (l instanceof Follow) f = (Follow) l;
 		if (f == null) {
@@ -74,6 +75,7 @@ final class Follow extends ComponentAdapter {
 	}
 
 	void applyMode() {
+		if (!ImageWindows.isDataWindow(win)) return;
 		ImageCanvas c = win.getCanvas();
 		if (c == null) return;
 		// ImageJ's own Scale to Fit re-fits the image whenever the window is laid out again, which undid every zoom
@@ -88,6 +90,7 @@ final class Follow extends ComponentAdapter {
 
 	/** Zooms the image so that it fills the window, keeping the top-left corner of the visible part. */
 	void fill() {
+		if (!ImageWindows.isDataWindow(win)) return;
 		ImageCanvas c = win.getCanvas();
 		ImagePlus imp = win.getImagePlus();
 		if (c == null || imp == null || !win.isVisible()) return;

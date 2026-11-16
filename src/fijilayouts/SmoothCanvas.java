@@ -37,6 +37,7 @@ final class SmoothCanvas extends ImageCanvas {
 
     /** Replace only the standard canvas, preserving the window, its layout, state and external listeners. */
     static SmoothCanvas install(ImageWindow window) {
+        if (!ImageWindows.isDataWindow(window)) return null;
         ImageCanvas old = window.getCanvas();
         if (old instanceof SmoothCanvas) return (SmoothCanvas) old;
         if (old == null || old.getClass() != ImageCanvas.class || window instanceof PlotWindow
