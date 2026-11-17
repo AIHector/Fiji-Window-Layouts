@@ -1082,6 +1082,7 @@ final class Engine {
 	static void onWindow(WindowEvent e) {
 		int id = e.getID();
 		Window w = e.getWindow();
+		if (id == WindowEvent.WINDOW_ACTIVATED) HistogramTool.selectedWindow(w);
 		if (id == WindowEvent.WINDOW_OPENED) HistogramInteraction.install(w);
 		if (id == WindowEvent.WINDOW_CLOSED) HistogramInteraction.closed(w);
 		if (id == WindowEvent.WINDOW_ACTIVATED && !isOwnDialog(w)) lastTarget = w;

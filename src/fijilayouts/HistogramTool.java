@@ -39,10 +39,12 @@ import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingWorker;
+import javax.swing.Timer;
 
 /** A histogram is a tool Frame, never a registered ImagePlus or an ImageCanvas. */
 final class HistogramTool extends PlugInFrame implements ImageListener, RoiListener {
     private static final Set<HistogramTool> tools = java.util.Collections.synchronizedSet(new LinkedHashSet<>());
+    private static HistogramTool following;
     private static final Field STATS = field("stats"), COUNTS = field("histogram"), FRAME = field("frame"),
             RGB = field("rgbMode"), LOG = field("logScale");
     private static Field field(String name) {
@@ -51,10 +53,28 @@ final class HistogramTool extends PlugInFrame implements ImageListener, RoiListe
     }
     static boolean supported() { return STATS != null && COUNTS != null && FRAME != null && RGB != null && LOG != null; }
     static ArrayList<HistogramTool> openTools() { synchronized (tools) { return new ArrayList<>(tools); } }
+    static HistogramTool followingTool() { return following; }
+    static void showFollowing() {
+        if (following == null || following.disposed)
+            following = new HistogramTool(selectedImage(), new HistogramToolCommand.Options(), true);
+        else { following.followCurrent(); following.setVisible(true); following.toFront(); }
+    }
+    private static ImagePlus selectedImage() {
+        ImagePlus image = WindowManager.getCurrentImage();
+        return image != null && ImageWindows.isDataWindow(image.getWindow()) && image.getWindow().isVisible() ? image : null;
+    }
+    static void selectedWindow(java.awt.Window window) {
+        if (following != null && ImageWindows.isDataWindow(window))
+            following.bindSource(((ij.gui.ImageWindow) window).getImagePlus());
+    }
 
     ImagePlus source;
-    final int sourceID;
-    final HistogramToolCommand.Options options;
+    int sourceID;
+    HistogramToolCommand.Options options;
+    final boolean followsSelection;
+    private int generation;
+    private int sourceType;
+    private final Timer selectionPoll = new Timer(150, event -> followCurrent());
     final JLabel sourceLabel = new JLabel(), readout = new JLabel("Value: —     Count: —"), status = new JLabel("Computing histogram…");
     final JCheckBox live = new JCheckBox("Live"), log = new JCheckBox("Log");
     final JButton refresh = new JButton("Refresh"), list = new JButton("List"), copy = new JButton("Copy"), channel = new JButton("RGB mode");
@@ -67,20 +87,27 @@ final class HistogramTool extends PlugInFrame implements ImageListener, RoiListe
     long sampledCount = -1;
 
     HistogramTool(ImagePlus source, HistogramToolCommand.Options options) {
-        super("Histogram of " + source.getShortTitle());
-        this.source = source; this.sourceID = source.getID(); this.options = options;
-        mode = source.isRGB() ? 0 : -1;
+        this(source, options, false);
+    }
+    private HistogramTool(ImagePlus source, HistogramToolCommand.Options options, boolean followsSelection) {
+        super(followsSelection ? "Histogram Tool" : "Histogram of " + source.getShortTitle());
+        this.followsSelection = followsSelection;
+        this.source = source; this.sourceID = source == null ? 0 : source.getID(); this.options = options;
+        sourceType = source == null ? -1 : source.getType();
+        if (followsSelection) this.options = defaultOptions(source);
+        mode = source != null && source.isRGB() ? 0 : -1;
         setLayout(new BorderLayout());
         JPanel panel = new JPanel(new BorderLayout(0, 6)); panel.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
-        sourceLabel.setText("Source: " + source.getTitle()); panel.add(sourceLabel, BorderLayout.NORTH);
+        sourceLabel.setText(source == null ? "No image selected" : "Source: " + source.getTitle()); panel.add(sourceLabel, BorderLayout.NORTH);
         JPanel plotPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
         plotPanel.add(graph); panel.add(plotPanel, BorderLayout.CENTER);
         JPanel bottom = new JPanel(new BorderLayout(0, 4));
         bottom.add(readout, BorderLayout.NORTH);
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
         buttons.add(list); buttons.add(copy); buttons.add(log); buttons.add(live); buttons.add(refresh);
-        if (source.isRGB() && !options.stack) buttons.add(channel);
-        if (options.stack) live.setEnabled(false);
+        buttons.add(channel); channel.setVisible(source != null && source.isRGB() && !this.options.stack);
+        if (this.options.stack) live.setEnabled(false);
+        if (followsSelection) live.setSelected(true);
         bottom.add(buttons, BorderLayout.CENTER); bottom.add(status, BorderLayout.SOUTH); panel.add(bottom, BorderLayout.SOUTH); add(panel);
         list.addActionListener(e -> { if (model != null) table().show(getTitle()); });
         copy.addActionListener(e -> { if (model != null) Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(tableText()), null); });
@@ -93,14 +120,55 @@ final class HistogramTool extends PlugInFrame implements ImageListener, RoiListe
         });
         tools.add(this); ImagePlus.addImageListener(this); Roi.addRoiListener(this);
         list.setEnabled(false); copy.setEnabled(false); log.setEnabled(false);
+        if (source == null) { live.setEnabled(false); refresh.setEnabled(false); status.setText("Select an image to inspect"); }
         WindowManager.addWindow(this);
         pack(); setResizable(false);
-        Rectangle b = source.getWindow().getBounds(); setLocation(b.x + Math.min(80, b.width), b.y + 35);
+        Rectangle b = source != null && source.getWindow() != null ? source.getWindow().getBounds() : new Rectangle(100, 100, 0, 0);
+        setLocation(b.x + Math.min(80, b.width), b.y + 35);
         setVisible(true); requestUpdate();
+        if (followsSelection) { selectionPoll.setCoalesce(true); selectionPoll.start(); }
+    }
+
+    private static HistogramToolCommand.Options defaultOptions(ImagePlus image) {
+        HistogramToolCommand.Options options = new HistogramToolCommand.Options();
+        if (image != null && image.getBitDepth() == 16 && ImagePlus.getDefault16bitRange() != 0) {
+            options.min = image.getCalibration().getCValue(0);
+            options.max = image.getCalibration().getCValue(Math.pow(2, ImagePlus.getDefault16bitRange()) - 1);
+        }
+        return options;
+    }
+    /** Tools do not become data sources. Polling also observes macro/menu selections without a focus event. */
+    void followCurrent() {
+        if (!followsSelection || disposed) return;
+        ImagePlus selected = selectedImage();
+        if (selected != null && (selected != source || selected.getType() != sourceType)) bindSource(selected);
+        else if (source != null && WindowManager.getImage(sourceID) != source) bindSource(null);
+    }
+    private void bindSource(ImagePlus next) {
+        if (source == next && (next == null || next.getType() == sourceType)) return;
+        Engine.debug("Histogram follow source " + sourceID + " -> " + (next == null ? 0 : next.getID()));
+        generation++; source = next; sourceID = next == null ? 0 : next.getID();
+        sourceType = next == null ? -1 : next.getType();
+        options = defaultOptions(next); mode = next != null && next.isRGB() ? 0 : -1;
+        if (model != null) model.release(); model = null; clearReadout();
+        list.setEnabled(false); copy.setEnabled(false); log.setEnabled(false);
+        live.setEnabled(next != null); refresh.setEnabled(next != null); channel.setEnabled(next != null);
+        channel.setVisible(next != null && next.isRGB());
+        sourceLabel.setText(next == null ? "No image selected" : "Source: " + next.getTitle());
+        status.setText(next == null ? "Select an image to inspect" : "Updating source statistics…");
+        graph.repaint(); pack();
+        dirty = worker != null;
+        if (next != null) requestUpdate();
     }
 
     /** No ImageWindow activation: the source stays the image that image commands operate on. */
     private void activateSource() {
+        if (followsSelection) {
+            followCurrent();
+            if (selectedImage() == null && source != null && source.getWindow() != null)
+                WindowManager.setCurrentWindow(source.getWindow());
+            WindowManager.setWindow(this); return;
+        }
         if (source != null && WindowManager.getImage(sourceID) == source && source.getWindow() != null)
             WindowManager.setCurrentWindow(source.getWindow());
         WindowManager.setWindow(this);
@@ -115,14 +183,16 @@ final class HistogramTool extends PlugInFrame implements ImageListener, RoiListe
         if (worker != null) { dirty = true; return; }
         final ImagePlus current = source;
         final int requestedMode = mode;
+        final int requestedGeneration = generation;
+        final HistogramToolCommand.Options requestedOptions = options;
         status.setText("Updating source statistics…");
         worker = new SwingWorker<Model, Void>() {
-            protected Model doInBackground() throws Exception { return new Model(current, options, requestedMode); }
+            protected Model doInBackground() throws Exception { return new Model(current, requestedOptions, requestedMode); }
             protected void done() {
                 worker = null;
-                if (disposed || source != current) return;
                 try {
                     Model next = get();
+                    if (disposed || source != current || generation != requestedGeneration || mode != requestedMode) { next.release(); return; }
                     if (model != null) model.release(); model = next; model.render(log.isSelected());
                     graph.setPreferredSize(new Dimension(model.raster.getWidth(), model.raster.getHeight()));
                     list.setEnabled(true); copy.setEnabled(true); log.setEnabled(true);
@@ -130,17 +200,18 @@ final class HistogramTool extends PlugInFrame implements ImageListener, RoiListe
                     status.setText(options.stack ? "Whole stack · snapshot" : live.isSelected() ? "Live · source pixels" : "Snapshot · Refresh to recalculate");
                     if (fromSource) inspectSource(sampleX, sampleY); else clearReadout();
                     graph.revalidate(); pack(); graph.repaint();
-                } catch (Exception ex) { status.setText("Could not update histogram"); Engine.debug("Histogram tool: " + ex); }
-                if (dirty) { dirty = false; requestUpdate(); }
+                } catch (Exception ex) { if (!disposed && source == current && generation == requestedGeneration) { status.setText("Could not update histogram"); Engine.debug("Histogram tool: " + ex); } }
+                finally { if (dirty && !disposed) { dirty = false; requestUpdate(); } }
             }
         };
         worker.execute();
     }
-    public void imageOpened(ImagePlus image) {}
+    public void imageOpened(ImagePlus image) { if (followsSelection) EventQueue.invokeLater(this::followCurrent); }
     public void imageUpdated(ImagePlus image) {
         if (image != source) return;
         EventQueue.invokeLater(() -> {
             if (disposed || image != source) return;
+            if (followsSelection && image.getType() != sourceType) { bindSource(image); return; }
             if (live.isSelected()) requestUpdate();
             else if (fromSource && HistogramInteraction.followsSource()) inspectSource(sampleX, sampleY);
         });
@@ -149,6 +220,8 @@ final class HistogramTool extends PlugInFrame implements ImageListener, RoiListe
     public void imageClosed(ImagePlus image) {
         if (image != source) return;
         EventQueue.invokeLater(() -> {
+            if (source != image || disposed) return;
+            if (followsSelection) { bindSource(null); followCurrent(); return; }
             source = null; dirty = false;
             live.setSelected(false); live.setEnabled(false); refresh.setEnabled(false); channel.setEnabled(false);
             sourceLabel.setText("Source closed · " + image.getTitle()); status.setText("Frozen snapshot · source is closed");
@@ -158,6 +231,7 @@ final class HistogramTool extends PlugInFrame implements ImageListener, RoiListe
     public void close() {
         if (disposed) return;
         disposed = true; tools.remove(this); ImagePlus.removeImageListener(this); Roi.removeRoiListener(this);
+        selectionPoll.stop(); if (following == this) following = null;
         if (worker != null) worker.cancel(true);
         if (model != null) model.release(); model = null; source = null;
         super.close();

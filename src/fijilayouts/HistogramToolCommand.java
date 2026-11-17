@@ -28,6 +28,7 @@ public final class HistogramToolCommand implements PlugIn {
     }
 
     public void run(String arg) {
+        if ("follow".equals(arg)) { EventQueue.invokeLater(HistogramTool::showFollowing); return; }
         ImagePlus source = IJ.getImage();
         if (source == null || !ImageWindows.isDataWindow(source.getWindow())) {
             IJ.error("Histogram", "Select a source image first."); return;

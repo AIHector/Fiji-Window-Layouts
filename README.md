@@ -539,3 +539,23 @@ Brightness/Contrast display-range changes leave the graph and counts unchanged, 
 Float/Alt options retain ImageJ's Bins, Use pixel value range, X_min, X_max, Y_max and Stack histogram labels. Bin frequencies, calibration and selections use ImageJ statistics. Direct native HistogramWindow APIs remain compatible and image-backed, with the earlier layout and pointer guards. Scripts that relied on Analyze > Histogram creating an editable image need an explicit graph image or the native API. ImageJ's core jar is unchanged.
 
 `./test-histogram-tool.sh /path/to/Fiji [optional-source.tif]` reproduces native Histogram contrast corruption, then tests the replacement through the real menu and Brightness/Contrast slider. Coverage includes Live/frozen counts, source identity, tool/image separation, zoom, selections, stacks, calibration, float options and RGB channels. Existing native compatibility, layout and zoom suites remain. Physical pointer feedback after installation and Windows/Linux behavior remain unverified.
+
+## Version 1.0.12-dev1: reusable Histogram Tool
+
+Open **Plugins > Window Layouts > Histogram Tool** for a single analysis window that follows the last selected data image, like Brightness/Contrast. Its title stays **Histogram Tool**, while **Source:** names the image currently being analyzed. Selecting another image recalculates the distribution. Clicking Histogram Tool or another tool does not replace the selected source with a tool's rendering pixels. Hovering an unselected image does not itself select it.
+
+**Live** starts enabled and follows pixel edits, selections and plane changes in that source. With Live off, the distribution stays frozen for the current source; selecting a different image still recalculates, so the source label and data always agree. Normal display-range changes remain independent of graph colours and counts. The RGB mode control appears for colour sources and resets appropriately when switching image types.
+
+The tool can stay open with no image: it shows **No image selected** and waits. Closing the current image follows the next selected image if available. Closing the last image clears the old graph and disables its data actions. A new image, including one with a reused title, becomes the source when selected. Closing the tool leaves source images open. Repeatedly launching the command brings the same window forward.
+
+### Keep Histogram Tool in the bottom toolbar
+
+1. Open Histogram Tool.
+2. In the bottom bar's **Tools** category, right-click its button.
+3. Choose **Keep in Shelf (open it from here when it is closed)**.
+
+The existing Side Toolbar stores the command and stable window title. Its button remains when the window closes and reopens Histogram Tool on the last selected image. Drag it within Tools to choose its position; right-click to change its label, initials or icon. No Side Toolbar update is required.
+
+**Analyze > Histogram** continues to open separate source-bound snapshots for comparisons. Those windows keep their original source, independently of the general Histogram Tool. ImageJ's core files are unchanged.
+
+`./test-following-histogram.sh` checks empty-image startup, singleton reuse, image switching, other-tool focus, Live/frozen semantics, rapid-switch result isolation, source closure, RGB controls, source-pointer inspection, and actual installed Side Toolbar launcher serialization and reopening. The existing Histogram, native compatibility, layout and zoom checks remain. Physical interaction acceptance and Windows/Linux behavior remain unverified.
