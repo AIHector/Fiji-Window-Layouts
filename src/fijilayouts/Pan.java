@@ -131,21 +131,11 @@ final class Pan implements MouseWheelListener {
 	 */
 	boolean zoom(MouseWheelEvent e) {
 		if (e.isShiftDown()) return true; // sideways movement while zooming: ignored
-		// the same direction as ImageJ's own Ctrl + scroll zoom
-		java.awt.Point pw = javax.swing.SwingUtilities.convertPoint(e.getComponent(), e.getPoint(), win);
-		return zoomAt(Math.exp(-e.getPreciseWheelRotation() * ZOOM_RATE), pw);
-	}
-
-	/** Zooms by a factor around a point given in the window's coordinates (Ctrl + scroll). */
-	boolean zoomAt(double factor, java.awt.Point pw) {
 		ImageCanvas ic = win.getCanvas();
 		ImagePlus imp = win.getImagePlus();
 		if (ic == null || imp == null || win instanceof ij.gui.PlotWindow) return false;
 		int iw = imp.getWidth(), ih = imp.getHeight(), cw = ic.getWidth(), ch = ic.getHeight();
 		if (cw <= 0 || ch <= 0) return true;
-		// the space inside the window's border: a fitted image leaves some of it empty, and grows into it
-		java.awt.Dimension border = Engine.chrome(win);
-		int aw = Math.max(cw, win.getWidth() - border.width), ah = Math.max(ch, win.getHeight() - border.height);
 		if (!zooming) {
 			Rectangle src = ic.getSrcRect();
 			double mag = ic.getMagnification();
@@ -153,30 +143,15 @@ final class Pan implements MouseWheelListener {
 			if (lastSrc == null || !src.equals(lastSrc) || mag != lastMag) { viewX = src.x; viewY = src.y; viewMag = mag; }
 			zooming = true;
 		}
-		// zooming out stops where the whole image fits in the window; with "Fill the Window", where the image still
-		// covers the window (fill means no empty space: switch to Fit, Cmd+Option+X, to see the whole image)
-		double minMag = Follow.mode().equals("fill") ? Math.max(aw / (double) iw, ah / (double) ih)
-			: Math.min(aw / (double) iw, ah / (double) ih);
-		double next = viewMag * factor;
+		double minMag = Math.max(cw / (double) iw, ch / (double) ih); // the image still fills its area
+		// the same direction as ImageJ's own Ctrl + scroll zoom
+		double next = viewMag * Math.exp(-e.getPreciseWheelRotation() * ZOOM_RATE);
 		next = Math.max(Math.min(minMag, viewMag), Math.min(MAX_MAG, next));
-		// the pointer in window coordinates: the canvas may move inside the window when its size changes
-		java.awt.Point at = ic.getLocation();
-		double px = Math.max(0, Math.min(cw, pw.x - at.x)), py = Math.max(0, Math.min(ch, pw.y - at.y));
+		java.awt.Point p = javax.swing.SwingUtilities.convertPoint(e.getComponent(), e.getPoint(), ic);
+		double px = Math.max(0, Math.min(cw, p.x)), py = Math.max(0, Math.min(ch, p.y));
 		// the image point under the cursor stays under it
 		double ox = viewX + px / viewMag, oy = viewY + py / viewMag;
 		viewMag = next;
-		// the canvas: the image at this zoom, no larger than the window's inner space
-		int nw = (int) Math.min(aw, Math.floor(iw * next)), nh = (int) Math.min(ah, Math.floor(ih * next));
-		if (nw != cw || nh != ch) {
-			ic.setSize(Math.max(nw, 1), Math.max(nh, 1));
-			win.validate();
-			win.repaint(); // the part of the window the canvas no longer covers
-			cw = ic.getWidth();
-			ch = ic.getHeight();
-			at = ic.getLocation();
-			px = Math.max(0, Math.min(cw, pw.x - at.x));
-			py = Math.max(0, Math.min(ch, pw.y - at.y));
-		}
 		viewX = clamp(ox - px / next, iw - cw / next);
 		viewY = clamp(oy - py / next, ih - ch / next);
 		drawPreview(ic, imp);
@@ -222,7 +197,7 @@ final class Pan implements MouseWheelListener {
 		int sw = (int) Math.min(iw, Math.round(cw / viewMag)), sh = (int) Math.min(ih, Math.round(ch / viewMag));
 		int sx = (int) Math.max(0, Math.min(iw - sw, Math.round(viewX)));
 		int sy = (int) Math.max(0, Math.min(ih - sh, Math.round(viewY)));
-		ic.setSourceRect(new Rectangle(sx, sy, sw, sh)); // the canvas keeps its size: ImageJ derives about this zoom
+		ic.setSourceRect(new Rectangle(sx, sy, sw, sh));
 		ic.setMagnification(viewMag);
 		ic.repaint();
 		lastSrc = new Rectangle(ic.getSrcRect());
