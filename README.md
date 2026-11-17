@@ -102,8 +102,9 @@ Without the AutoRun macro the menu commands still work, but the shortcuts and th
 ```bash
 git clone https://github.com/AIHector/Fiji-Window-Layouts.git
 cd Fiji-Window-Layouts
-./test.sh     # 561 headless unit tests
-./build.sh    # compiles with Fiji's own Java and installs both files
+./test.sh     # layout and zoom boundary/repaint checks
+./build.sh    # compiles locally with Fiji's own Java; does not install
+./build.sh --install  # installs both files; close Fiji first
 ```
 
 `build.sh` takes the Fiji folder as an optional argument (`./build.sh /path/to/Fiji`).
@@ -116,7 +117,7 @@ A layout places *kinds* of windows. A window whose kind has no zone in the activ
 
 | Kind (name used in zones) | Windows |
 |---|---|
-| `images` | every image window: single images, stacks, hyperstacks, composites, plots |
+| `images` | ordinary ImageJ image and stack windows: single images, stacks, hyperstacks and composites |
 | `b&c` | Brightness/Contrast (B&C), Window/Level (W&L) |
 | `roi` | ROI Manager |
 | `threshold` | Threshold, Threshold Color |
@@ -129,7 +130,7 @@ A layout places *kinds* of windows. A window whose kind has no zone in the activ
 
 How each kind is placed:
 
-- **Images** are tiled in a grid inside their zone, as square as possible (2 images side by side, 3 or 4 in 2×2, 5 or 6 in 3×2, ...). Each image window takes its whole cell. By default (**Image zoom: fit**) the whole image is fitted inside it, as large as fits; when the image's shape differs from the cell, part of the window stays empty. With **Fill the Window** (chosen in the image's *Zoom* menu of the Side Toolbar, or in Preferences) the image is zoomed to cover the whole window, so there is no empty space; what does not fit is cut off at the right and the bottom, because the view always starts at the image's top-left corner (pan with two fingers, with the hand tool or by holding the space bar; ImageJ's small navigator box shows which part is in view). With **Fit and Shrink the Window** the whole image is fitted and the window then shrinks around it, so it is smaller than its cell but has no empty space. Preferences also offer **steps** (the whole image at ImageJ's standard zooms). **Plots** are redrawn at the size of their cell instead of being zoomed.
+- **Images** are tiled in a grid inside their zone, as square as possible (2 images side by side, 3 or 4 in 2×2, 5 or 6 in 3×2, ...). Each image window takes its whole cell. By default (**Image zoom: fit**) the whole image is fitted inside it, as large as fits; when the image's shape differs from the cell, part of the window stays empty. With **Fill the Window** (chosen in the image's *Zoom* menu of the Side Toolbar, or in Preferences) the image is zoomed to cover the whole window, so there is no empty space; what does not fit is cut off at the right and the bottom, because the view always starts at the image's top-left corner (pan with two fingers, with the hand tool or by holding the space bar; ImageJ's small navigator box shows which part is in view). With **Fit and Shrink the Window** the whole image is fitted and the window then shrinks around it, so it is smaller than its cell but has no empty space. Preferences also offer **steps** (the whole image at ImageJ's standard zooms). **Histogram, Plot and other specialized image-backed tools** retain their native size, canvas, controls and zoom handling. They are excluded from image tiling. Explicit snapping and saved arrangements can move them without resizing them.
 - **No space between windows.** Zones that touch share their edge to the pixel, the work area starts right under the toolbar, and every built-in layout tiles the whole screen.
 - **Results, Log, Console and ROI Manager** are resized to fill their zone. ROI Manager is never made shorter than 220 px, so its buttons stay usable.
 - **Fixed-size tools** (B&C, Threshold, Channels, SNT) keep their own size and are moved to the top-left corner of their zone.
@@ -239,7 +240,7 @@ Images fill display 1 (the one with the toolbar); all tools go to display 2. **W
 
 The plugin records **exactly what is on screen**:
 
-- **Every image window**: its place, its size, its zoom and the part of the image in view.
+- **Every ordinary image or stack window**: its place, its size, its zoom and the part of the image in view. Specialized image-backed tools are saved by title and restored by position, preserving their native size.
 - **Every other window, by its title**: B&C, ROI Manager, Results, Log, Console, Undo History, and any plugin's window.
 - For each kind of window (images, B&C, ROI Manager...), also the area it covers, so windows of that kind that open later have a place too.
 
@@ -320,7 +321,7 @@ The same zones are in the menu **Plugins ▸ Window Layouts ▸ Snap Zones** (ha
 
 ## Trackpad, zoom and resizing
 
-These work in every image window (switch them in Preferences):
+These work in ordinary ImageJ image and stack windows (switch them in Preferences):
 
 - **Two-finger panning.** On a zoomed image, two fingers on the trackpad move the image in every direction, like a map. This includes stacks and multichannel images: while the image is zoomed in, two fingers pan, and **Option + two fingers** change the slice or channel. When the whole image is visible (nothing to pan), up and down change the slice or channel as in ImageJ (as *Edit ▸ Options ▸ Misc.* decides).
 - **Smooth zoom: Ctrl + two fingers.** Magnification and view position change continuously around the pointer. The view retains its fractional image-pixel position after scrolling stops: there is no timed handover, rounding step or finishing animation. The image canvas stays in its fitted area, including during an unchanged-window layout. ImageJ’s selection and overlay drawing uses the same fractional coordinate mapping. Zooming out stops at the scale that covers the current canvas. Genuine window resizing and explicit Fit/Fill commands still apply their requested new view. Shift + scroll keeps ImageJ’s own zoom steps.
@@ -466,7 +467,7 @@ Everything below was tested on this Mac (Fiji 2.18.0 / ImageJ 1.54p, Java 21, ma
 - **SNT Fill Manager and Neuroanatomy Shortcuts** windows (recognised by title, not opened live).
 - **Your own fingers on the keyboard.** Key presses were sent as real macOS key events (System Events key codes) and as Java key events. Please try a few shortcuts yourself; if one fails, turn on the key log.
 - **Layout 6 on a single display.** The fallback to layout 2 is unit-tested, but could not be tried live with three monitors connected.
-- **The 3D Viewer, BigDataViewer and other special viewers.** They are treated as images but only moved, never zoomed; not tried.
+- **The 3D Viewer, BigDataViewer and other special viewers.** Specialized window subclasses are excluded from image tiling and zoom adaptation; these viewers have not been tried.
 - **Ctrl+Shift and Alt+Shift modifiers** were tested only in unit tests (Ctrl+Option was also tested live).
 - **The Dock on the side or a different toolbar size.** The maths uses the real screen insets and toolbar height, but only this configuration was tried.
 
@@ -486,6 +487,7 @@ Everything below was tested on this Mac (Fiji 2.18.0 / ImageJ 1.54p, Java 21, ma
 |---|---|
 | `src/fijilayouts/WindowLayouts_.java` | the plugin |
 | `src/fijilayouts/Pan.java` | two-finger panning and smooth zoom |
+| `src/fijilayouts/SmoothCanvas.java` | persistent fractional rendering, tool coordinates and native overlay drawing |
 | `src/fijilayouts/Follow.java` | what an image does when its window is resized |
 | `src/plugins.config` | its menu entries |
 | `test/fijilayouts/LayoutTests.java` | headless unit tests (`./test.sh`) |
@@ -499,8 +501,14 @@ Everything below was tested on this Mac (Fiji 2.18.0 / ImageJ 1.54p, Java 21, ma
 
 MIT License, © 2026 Ettore Colombo. See [LICENSE](LICENSE).
 
-## Development candidate
+## Version 1.0.8
 
-Version 1.0.8-dev1 replaces the earlier native-only zoom experiment with a persistent fractional viewport. It retains the fixed image canvas, keeps native mouse tools and overlay drawing, prevents unchanged-window layout from growing the canvas, and cancels an obsolete placement retry when a later gesture supersedes it. Real-trackpad acceptance remains necessary.
+Ctrl-scroll zoom retains its fractional view position throughout scrolling and after it stops, keeping the image steady under the pointer. The fitted canvas stays in place during unchanged-window layouts. Native mouse tools and overlays use the same view coordinates, and an obsolete placement retry cannot override a later gesture.
+
+Verified with ImageJ 1.54p on macOS, including a real-trackpad acceptance check. Automated validation covers 561 existing layout checks, 24 zoom boundary/repaint checks, 27 image-window interaction checks and 3 checks with Undo History. Windows, Linux and other ImageJ runtimes remain unverified.
 
 `./build.sh` builds locally without installing. `./test.sh` runs the existing layout and zoom boundary checks; `./test-integration.sh` checks wheel dispatch, fractional drawing, native tools, three-channel stacks and Fit/Fill interactions in a separate ImageJ with isolated preferences. `./test-combined.sh` checks the installed Undo History together with the new canvas. Use `./build.sh /path/to/Fiji --install` only with that Fiji closed.
+
+## Version 1.0.9-dev1
+
+Native Histogram and Plot windows, and unknown ImageWindow subclasses, retain their native canvas, size, controls, wheel handling and zoom. Only ordinary ImageWindow and StackWindow windows receive image tiling, Fit/Fill and fractional zoom. A saved tool position or explicit snap can move a specialized tool without stretching it. `./test-native-tools.sh` checks the Analyze > Histogram command, native controls and all three plugins together; optional jar arguments select candidate Undo History and Side Toolbar builds.

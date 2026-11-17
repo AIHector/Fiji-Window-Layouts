@@ -567,7 +567,7 @@ final class Engine {
 
 	static Group classify(Window w) {
 		if (w == null || !w.isVisible()) return null;
-		if (w instanceof ImageWindow) return Group.IMAGES;
+		if (w instanceof ImageWindow) return ImageWindows.isDataWindow(w) ? Group.IMAGES : null;
 		if (w == IJ.getInstance()) return Group.TOOLBAR;
 		return classifyTitle(titleOf(w), w instanceof TextWindow);
 	}
@@ -639,19 +639,20 @@ final class Engine {
 
 	/** A window the layout saved exactly (by title) goes back to its saved place and size. Returns false if not saved. */
 	static boolean placeExact(Window w, Layout l) {
-		if (l.windows.isEmpty() || !w.isVisible() || w instanceof ImageWindow || w == IJ.getInstance()) return false;
+		if (l.windows.isEmpty() || !w.isVisible() || ImageWindows.isDataWindow(w) || w == IJ.getInstance()) return false;
 		String t = titleOf(w);
 		Zone z = t == null ? null : l.windows.get(t);
 		if (z == null) return false;
 		Rectangle r = toRect(z);
-		if (isResizable(w)) w.setBounds(r);
+		if (w instanceof ImageWindow) w.setLocation(r.x, r.y);
+		else if (isResizable(w)) w.setBounds(r);
 		else w.setLocation(r.x, r.y);
 		return true;
 	}
 
 	static boolean savedExactly(Window w, Layout l) {
 		String t = titleOf(w);
-		return t != null && l.windows.containsKey(t) && !(w instanceof ImageWindow);
+		return t != null && l.windows.containsKey(t) && !ImageWindows.isDataWindow(w);
 	}
 
 	/**
@@ -724,7 +725,7 @@ final class Engine {
 		if (ids == null) return imps;
 		for (int id : ids) {
 			ImagePlus imp = WindowManager.getImage(id);
-			if (imp != null && imp.getWindow() != null && imp.getWindow().isVisible()) imps.add(imp);
+			if (imp != null && ImageWindows.isDataWindow(imp.getWindow()) && imp.getWindow().isVisible()) imps.add(imp);
 		}
 		return imps;
 	}
@@ -803,7 +804,7 @@ final class Engine {
 	/** Puts back the saved zoom and visible part when the image has the saved size. */
 	static boolean restoreView(ImageWindow win, ImagePlus imp, ImageSlot slot, Rectangle r) {
 		ImageCanvas cv = win.getCanvas();
-		if (cv == null || slot.mag <= 0 || imp.getWidth() != slot.iw || imp.getHeight() != slot.ih || win instanceof PlotWindow)
+		if (!ImageWindows.isDataWindow(win) || cv == null || slot.mag <= 0 || imp.getWidth() != slot.iw || imp.getHeight() != slot.ih || win instanceof PlotWindow)
 			return false;
 		int chromeW = win.getWidth() - cv.getWidth(), chromeH = win.getHeight() - cv.getHeight();
 		int cw = Math.max(r.width - chromeW, 32), ch = Math.max(r.height - chromeH, 32);
@@ -848,24 +849,18 @@ final class Engine {
 	}
 
 	static void fitImage(final ImageWindow win, final ImagePlus imp, final Rectangle cell, final int retries) {
+		if (!ImageWindows.isDataWindow(win)) {
+			// Histogram, Plot and custom tool windows retain their native size, controls and canvas.
+			win.setLocation(cell.x, cell.y);
+			return;
+		}
 		ImageCanvas cv = win.getCanvas();
 		if (cv == null || imp == null) {
 			// special viewers (for example the 3D viewer) manage their own size: only move them
 			win.setLocation(cell.x, cell.y);
 			return;
 		}
-		if (win instanceof PlotWindow) {
-			// a plot is redrawn at the size of its cell instead of being zoomed
-			int chromeW = win.getWidth() - cv.getWidth(), chromeH = win.getHeight() - cv.getHeight();
-			ij.gui.Plot plot = ((PlotWindow) win).getPlot();
-			if (plot != null) {
-				plot.setSize(Math.max(cell.width - chromeW, 200), Math.max(cell.height - chromeH, 120));
-				plot.updateImage();
-				win.pack();
-			}
-			win.setLocation(cell.x, cell.y);
-			return;
-		}
+
 		releaseAlt();
 		// 1. the window takes the cell; ImageJ's layout gives the canvas what is left inside the window's border
 		java.awt.Dimension border = chrome(win);
@@ -1091,14 +1086,14 @@ final class Engine {
 		}
 		if (!autoEnabled()) return;
 		if (id != WindowEvent.WINDOW_OPENED && id != WindowEvent.WINDOW_CLOSED) return;
-		boolean image = w instanceof ImageWindow;
+		boolean image = ImageWindows.isDataWindow(w);
 		if (id == WindowEvent.WINDOW_OPENED && !image && classify(w) == null && !isClassifiableLater(w)) return;
 		if (id == WindowEvent.WINDOW_CLOSED && !image) return;
 		queue(w);
 	}
 
 	static void onShown(Window w) {
-		if (autoEnabled() && !(w instanceof ImageWindow) && (classify(w) != null || isClassifiableLater(w))) queue(w);
+		if (autoEnabled() && !ImageWindows.isDataWindow(w) && (classify(w) != null || isClassifiableLater(w))) queue(w);
 	}
 
 	static void queue(Window w) {
@@ -1127,7 +1122,7 @@ final class Engine {
 		for (Window w : ws) {
 			if (placeExact(w, l)) continue;
 			Group g = classify(w);
-			if (w instanceof ImageWindow || (g == null && !w.isVisible())) images = true;
+			if (ImageWindows.isDataWindow(w)) images = true;
 			else if (g != null && g != Group.TOOLBAR) placeTool(w, g, l);
 			else if (g == null && w.isVisible()) keepClear(w); // a window the plugin does not know: only out from under the bars
 		}
@@ -1258,7 +1253,7 @@ final class Engine {
 	/** Re-zooms the active image for its current window with the current mode (fill, fit, or fit and shrink). */
 	static void refitActiveImage() {
 		ImagePlus imp = ij.WindowManager.getCurrentImage();
-		if (imp == null || imp.getWindow() == null) return;
+		if (imp == null || !ImageWindows.isDataWindow(imp.getWindow())) return;
 		ImageWindow w = imp.getWindow();
 		fitImage(w, imp, w.getBounds());
 	}
@@ -1316,7 +1311,7 @@ final class Engine {
 	/** Sets the active image's zoom, keeping the top-left corner of the visible part; the window keeps its size. */
 	static void zoomTo(double mag) {
 		ImagePlus imp = ij.WindowManager.getCurrentImage();
-		if (imp == null || imp.getWindow() == null) return;
+		if (imp == null || !ImageWindows.isDataWindow(imp.getWindow())) return;
 		ImageWindow w = imp.getWindow();
 		ImageCanvas c = w.getCanvas();
 		releaseAlt();
@@ -1442,7 +1437,7 @@ final class Engine {
 				imp.getWidth(), imp.getHeight(), imp.getTitle()));
 		}
 		for (Window w : Window.getWindows()) {
-			if (!w.isVisible() || w instanceof ImageWindow || w == IJ.getInstance() || isOwnDialog(w)) continue;
+			if (!w.isVisible() || ImageWindows.isDataWindow(w) || w == IJ.getInstance() || isOwnDialog(w)) continue;
 			String t = titleOf(w);
 			if (t == null || t.trim().isEmpty() || t.startsWith("Save current arrangement")) continue;
 			GraphicsDevice d = deviceOf(w);

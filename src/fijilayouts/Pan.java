@@ -34,6 +34,7 @@ final class Pan implements MouseWheelListener {
 
 	/** Puts a Pan in front of ImageJ's wheel handler on an image window (once). */
 	static void install(ImageWindow w) {
+		if (!ImageWindows.isDataWindow(w)) return;
 		for (MouseWheelListener l : w.getMouseWheelListeners()) if (l instanceof Pan) return;
 		for (MouseWheelListener l : w.getMouseWheelListeners()) {
 			if (l == w) { // ImageJ's ImageWindow and StackWindow handle the wheel themselves
@@ -66,6 +67,7 @@ final class Pan implements MouseWheelListener {
 
 	/** Pans (or, with Ctrl, zooms) the image for this event; false leaves the event to ImageJ. */
 	boolean handle(MouseWheelEvent e) {
+		if (!ImageWindows.isDataWindow(win)) return false;
 		boolean ctrl = (e.getModifiers() & InputEvent.CTRL_MASK) != 0;
 		long now = System.currentTimeMillis();
 		if (ctrl && smoothZoom() && !IJ.shiftKeyDown()) {
