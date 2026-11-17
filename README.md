@@ -323,7 +323,7 @@ The same zones are in the menu **Plugins ▸ Window Layouts ▸ Snap Zones** (ha
 These work in every image window (switch them in Preferences):
 
 - **Two-finger panning.** On a zoomed image, two fingers on the trackpad move the image in every direction, like a map. This includes stacks and multichannel images: while the image is zoomed in, two fingers pan, and **Option + two fingers** change the slice or channel. When the whole image is visible (nothing to pan), up and down change the slice or channel as in ImageJ (as *Edit ▸ Options ▸ Misc.* decides).
-- **Smooth zoom: Ctrl + two fingers.** Any zoom, not only ImageJ's steps; the image point under the pointer stays under it, and the window keeps its size. While the fingers move, the plugin draws the image itself at the exact (sub-pixel) position; when they stop, ImageJ takes over and draws selections and overlays again. A fitted image grows into the window's empty space as you zoom in; zooming out stops where the whole image fits in the window, or, with *Fill the Window*, where the image still covers the window (press **Cmd+Option+X** to switch to Fit and see the whole image). Shift + scroll keeps ImageJ's own zoom steps.
+- **Smooth zoom: Ctrl + two fingers.** Any zoom, not only ImageJ's steps; the image point under the pointer stays under it, and the window keeps its size. ImageJ draws every frame, including selections and overlays. The canvas keeps its fitted area throughout: it does not grow into empty window space. There is no delayed handover or animation when scrolling stops. Magnification changes continuously; positioning uses ImageJ’s whole image pixels (at high magnification this can move a feature by up to one image pixel between wheel events). Zooming out stops at the scale that covers the current canvas. Shift + scroll keeps ImageJ's own zoom steps.
 - **When an image window is resized** (dragging an edge or a corner), the image can:
   - **keep the zoom**: ImageJ's behaviour, more or less of the image shows (default);
   - **fill the window**: the image scales so that it covers the window, keeping the top-left corner of the visible part; for example a window as wide as the screen shows the image across the whole width, and two fingers pan through the part that does not fit. Placements (layouts and snap zones) then fill their zone too, from the image's top-left corner;
@@ -475,7 +475,7 @@ Everything below was tested on this Mac (Fiji 2.18.0 / ImageJ 1.54p, Java 21, ma
 - On the 14-inch screen there is not enough room for every tool at once. B&C, Threshold and Channels cascade in one slot and can overlap a neighbouring window (Threshold is 303 px wide).
 - A window moved to another display and back can end a few pixels from where it started (it is clamped to stay on screen). Delete (restore) returns it exactly.
 - Snapping or rearranging re-zooms images (fit, steps or fill); it does not keep a zoom you set by hand.
-- During a smooth zoom, selections and overlays are not drawn; they come back as soon as the fingers stop.
+- Smooth zoom uses ImageJ’s native whole-pixel positioning. It avoids an end-of-gesture jump, but does not provide fractional image-pixel translation at high magnification.
 - A resize that starts on a window edge covered by the Side Toolbar's bottom bar does not start: grab the edge above the bar.
 - Fixed-size tools (B&C, Threshold, Channels) cannot be stretched: if their zone is larger than they are, some desktop shows around them.
 - Custom layouts store one rectangle per kind of window, not per individual window.
@@ -498,3 +498,9 @@ Everything below was tested on this Mac (Fiji 2.18.0 / ImageJ 1.54p, Java 21, ma
 ## License
 
 MIT License, © 2026 Ettore Colombo. See [LICENSE](LICENSE).
+
+## Development candidate
+
+This working copy contains the 1.0.7-dev1 zoom candidate. It keeps the fixed fitted canvas from the uncommitted 1.0.6 revision and uses native drawing throughout each gesture. Real trackpad acceptance remains necessary.
+
+`./build.sh` builds locally without installing; `./build.sh /path/to/Fiji --install` installs explicitly (close Fiji first). `./test.sh` runs layout checks and native-canvas zoom regression checks.

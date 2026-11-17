@@ -11,3 +11,5 @@ OUT="$HERE/build/test-classes"
 rm -rf "$OUT" && mkdir -p "$OUT"
 "$JAVA_BIN/javac" --release 8 -Xlint:-options -cp "$IJ" -d "$OUT" "$HERE"/src/fijilayouts/*.java "$HERE"/test/fijilayouts/*.java
 "$JAVA_BIN/java" -Djava.awt.headless=true -cp "$OUT:$IJ" fijilayouts.LayoutTests
+
+"$JAVA_BIN/java" -Djava.awt.headless=true -cp "$OUT:$IJ" fijilayouts.ZoomTests

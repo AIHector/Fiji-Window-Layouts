@@ -58,17 +58,9 @@ final class Pan implements MouseWheelListener {
 	static final double MAX_MAG = 32;
 	/** Scroll events closer together than this after a zoom are the trackpad's momentum, not a new pan. */
 	static final long ZOOM_TAIL_MS = 150;
-	/** After this pause in zooming, the view is handed to ImageJ (its own zoom, source rectangle and redraw). */
-	static final int ZOOM_COMMIT_MS = 160;
 
 	private long lastZoomAt;
-	/** The zoom in progress: magnification and view origin in image pixels, unrounded. */
-	private double viewMag, viewX, viewY;
-	private boolean zooming;
-	/** The source rectangle and magnification this class handed to ImageJ last (if they changed since, start afresh). */
-	private Rectangle lastSrc;
-	private double lastMag;
-	private javax.swing.Timer commitTimer;
+	private final ZoomView zoomView = new ZoomView();
 
 	/** Pans (or, with Ctrl, zooms) the image for this event; false leaves the event to ImageJ. */
 	boolean handle(MouseWheelEvent e) {
@@ -123,43 +115,15 @@ final class Pan implements MouseWheelListener {
 		return true;
 	}
 
-	/**
-	 * Smooth zoom around the cursor. ImageJ can place a zoomed view only at whole image pixels, which makes the image
-	 * hop at every step; so while the fingers move, this class draws the image itself at the exact (sub-pixel) view,
-	 * and hands the final view to ImageJ when they stop. The window never changes size: a fitted image grows into the
-	 * window's empty space, and zooming out stops where the whole image fits in the window.
-	 */
+	/** Continuous magnification using ImageJ's renderer for both moving and resting views. */
 	boolean zoom(MouseWheelEvent e) {
-		if (e.isShiftDown()) return true; // sideways movement while zooming: ignored
+		if (e.isShiftDown()) return true;
 		ImageCanvas ic = win.getCanvas();
 		ImagePlus imp = win.getImagePlus();
 		if (ic == null || imp == null || win instanceof ij.gui.PlotWindow) return false;
-		int iw = imp.getWidth(), ih = imp.getHeight(), cw = ic.getWidth(), ch = ic.getHeight();
-		if (cw <= 0 || ch <= 0) return true;
-		if (!zooming) {
-			Rectangle src = ic.getSrcRect();
-			double mag = ic.getMagnification();
-			// continue from the unrounded view of the last zoom if nothing else changed the view since
-			if (lastSrc == null || !src.equals(lastSrc) || mag != lastMag) { viewX = src.x; viewY = src.y; viewMag = mag; }
-			zooming = true;
-		}
-		double minMag = Math.max(cw / (double) iw, ch / (double) ih); // the image still fills its area
-		// the same direction as ImageJ's own Ctrl + scroll zoom
-		double next = viewMag * Math.exp(-e.getPreciseWheelRotation() * ZOOM_RATE);
-		next = Math.max(Math.min(minMag, viewMag), Math.min(MAX_MAG, next));
 		java.awt.Point p = javax.swing.SwingUtilities.convertPoint(e.getComponent(), e.getPoint(), ic);
-		double px = Math.max(0, Math.min(cw, p.x)), py = Math.max(0, Math.min(ch, p.y));
-		// the image point under the cursor stays under it
-		double ox = viewX + px / viewMag, oy = viewY + py / viewMag;
-		viewMag = next;
-		viewX = clamp(ox - px / next, iw - cw / next);
-		viewY = clamp(oy - py / next, ih - ch / next);
-		drawPreview(ic, imp);
-		if (commitTimer == null) {
-			commitTimer = new javax.swing.Timer(ZOOM_COMMIT_MS, ev -> commit());
-			commitTimer.setRepeats(false);
-		}
-		commitTimer.restart();
+		zoomView.zoom(ic, imp, Math.exp(-e.getPreciseWheelRotation() * ZOOM_RATE), p.x, p.y);
+		Follow.noteZoom(win);
 		return true;
 	}
 
@@ -168,40 +132,42 @@ final class Pan implements MouseWheelListener {
 		return max <= 0 ? max / 2 : Math.max(0, Math.min(max, v));
 	}
 
-	/** Draws the image at the exact view, straight onto the canvas (ImageJ redraws it properly at the commit). */
-	void drawPreview(ImageCanvas ic, ImagePlus imp) {
-		java.awt.Image img = imp.getImage();
-		java.awt.Graphics g = ic.getGraphics();
-		if (img == null || g == null) return;
-		try {
-			java.awt.Graphics2D g2 = (java.awt.Graphics2D) g;
-			boolean smooth = viewMag < 1 || Prefs.interpolateScaledImages && viewMag < 4;
-			g2.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, smooth
-				? java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR : java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-			java.awt.geom.AffineTransform at = new java.awt.geom.AffineTransform();
-			at.scale(viewMag, viewMag);
-			at.translate(-viewX, -viewY);
-			g2.drawImage(img, at, null);
-		} finally {
-			g.dispose();
-		}
-	}
+	/**
+	 * Retains fractional cursor anchoring between wheel events, but publishes a native ImageJ view on every event.
+	 * There is deliberately no preview, timer, delayed rounding, canvas resize or end-of-gesture animation.
+	 * Native drawing also keeps selections, overlays and the zoom indicator visible and aligned throughout.
+	 */
+	static final class ZoomView {
+		private double mag, x, y;
+		private Rectangle lastSrc;
+		private double lastMag;
+		private int lastWidth, lastHeight, lastImageWidth, lastImageHeight;
 
-	/** Hands the view to ImageJ: its magnification, the nearest whole-pixel source rectangle, and a proper redraw. */
-	void commit() {
-		zooming = false;
-		ImageCanvas ic = win.getCanvas();
-		ImagePlus imp = win.getImagePlus();
-		if (ic == null || imp == null || !win.isVisible()) return;
-		int iw = imp.getWidth(), ih = imp.getHeight(), cw = ic.getWidth(), ch = ic.getHeight();
-		int sw = (int) Math.min(iw, Math.round(cw / viewMag)), sh = (int) Math.min(ih, Math.round(ch / viewMag));
-		int sx = (int) Math.max(0, Math.min(iw - sw, Math.round(viewX)));
-		int sy = (int) Math.max(0, Math.min(ih - sh, Math.round(viewY)));
-		ic.setSourceRect(new Rectangle(sx, sy, sw, sh));
-		ic.setMagnification(viewMag);
-		ic.repaint();
-		lastSrc = new Rectangle(ic.getSrcRect());
-		lastMag = ic.getMagnification();
-		Follow.noteZoom(win);
+		void zoom(ImageCanvas ic, ImagePlus imp, double factor, double px, double py) {
+			int iw = imp.getWidth(), ih = imp.getHeight(), cw = ic.getWidth(), ch = ic.getHeight();
+			if (cw <= 0 || ch <= 0 || !Double.isFinite(factor) || factor <= 0) return;
+			Rectangle src = ic.getSrcRect();
+			// Panning, a menu zoom, a layout or image-size change invalidates the previous fractional anchor.
+			if (lastSrc == null || !src.equals(lastSrc) || ic.getMagnification() != lastMag
+					|| cw != lastWidth || ch != lastHeight || iw != lastImageWidth || ih != lastImageHeight) {
+				x = src.x; y = src.y; mag = ic.getMagnification();
+			}
+			double minimum = Math.max(cw / (double) iw, ch / (double) ih);
+			double next = Math.max(Math.min(minimum, mag), Math.min(MAX_MAG, mag * factor));
+			px = Math.max(0, Math.min(cw, px)); py = Math.max(0, Math.min(ch, py));
+			x = clamp(x + px / mag - px / next, iw - cw / next);
+			y = clamp(y + py / mag - py / next, ih - ch / next);
+			mag = next;
+			// Cover the canvas, including its final fractional image pixel. Never resize its fitted area.
+			int sw = Math.max(1, (int) Math.min(iw, Math.ceil(cw / mag)));
+			int sh = Math.max(1, (int) Math.min(ih, Math.ceil(ch / mag)));
+			int sx = (int) Math.max(0, Math.min(iw - sw, Math.round(x)));
+			int sy = (int) Math.max(0, Math.min(ih - sh, Math.round(y)));
+			ic.setSourceRect(new Rectangle(sx, sy, sw, sh));
+			ic.setMagnification(mag); // setSourceRect derives a different zoom; restore the intended continuous zoom
+			lastSrc = new Rectangle(ic.getSrcRect()); lastMag = ic.getMagnification();
+			lastWidth = cw; lastHeight = ch; lastImageWidth = iw; lastImageHeight = ih;
+			ic.repaint();
+		}
 	}
 }

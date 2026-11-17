@@ -1,17 +1,29 @@
 #!/bin/sh
-# Build Fiji_Window_Layouts.jar from src/ and install it into Fiji.
-# Usage: ./build.sh [/path/to/Fiji]   (default: /Applications/Fiji)
-set -e
-FIJI="${1:-/Applications/Fiji}"
+# Build locally by default. Installation requires the explicit --install flag with Fiji closed.
+# Usage: ./build.sh [/path/to/Fiji] [--no-install|--install]
+set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
-JAVA_BIN=$(echo "$FIJI"/java/macos-*/*/bin)
-IJ=$(ls "$FIJI"/jars/ij-*.jar | head -1)
-
-rm -rf "$HERE/build" && mkdir -p "$HERE/build/classes"
-"$JAVA_BIN/javac" --release 8 -Xlint:-options -cp "$IJ" -d "$HERE/build/classes" "$HERE"/src/fijilayouts/*.java
+FIJI_ARG=""; INSTALL=false
+for arg in "$@"; do
+  case "$arg" in
+    --install) INSTALL=true ;;
+    --no-install) INSTALL=false ;;
+    --*) echo "Unknown option: $arg" >&2; exit 1 ;;
+    *) FIJI_ARG="$arg" ;;
+  esac
+done
+. "$HERE/fiji-env.sh" "$FIJI_ARG"
+VERSION=$(cat "$HERE/VERSION")
+rm -rf "$HERE/build/classes"
+mkdir -p "$HERE/build/classes"
+"$JAVA_BIN/javac" --release 8 -Xlint:-options -encoding UTF-8 -cp "$IJ" -d "$HERE/build/classes" "$HERE"/src/fijilayouts/*.java
 cp "$HERE/src/plugins.config" "$HERE/build/classes/"
-"$JAVA_BIN/jar" cf "$HERE/build/Fiji_Window_Layouts.jar" -C "$HERE/build/classes" .
-cp "$HERE/build/Fiji_Window_Layouts.jar" "$FIJI/plugins/Fiji_Window_Layouts.jar"
-mkdir -p "$FIJI/macros/AutoRun"
-cp "$HERE/src/Window_Layouts_Startup.ijm" "$FIJI/macros/AutoRun/Window_Layouts_Startup.ijm"
-echo "Installed $FIJI/plugins/Fiji_Window_Layouts.jar and macros/AutoRun/Window_Layouts_Startup.ijm - restart Fiji."
+printf 'Implementation-Title: Fiji Window Layouts\nImplementation-Version: %s\n' "$VERSION" > "$HERE/build/manifest.txt"
+"$JAVA_BIN/jar" cfm "$HERE/build/Fiji_Window_Layouts.jar" "$HERE/build/manifest.txt" -C "$HERE/build/classes" .
+echo "Built $HERE/build/Fiji_Window_Layouts.jar (version $VERSION)"
+if [ "$INSTALL" = true ]; then
+  cp "$HERE/build/Fiji_Window_Layouts.jar" "$FIJI/plugins/Fiji_Window_Layouts.jar"
+  mkdir -p "$FIJI/macros/AutoRun"
+  cp "$HERE/src/Window_Layouts_Startup.ijm" "$FIJI/macros/AutoRun/Window_Layouts_Startup.ijm"
+  echo "Installed into $FIJI — restart Fiji."
+fi
