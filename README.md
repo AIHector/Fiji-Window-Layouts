@@ -323,7 +323,7 @@ The same zones are in the menu **Plugins ▸ Window Layouts ▸ Snap Zones** (ha
 These work in every image window (switch them in Preferences):
 
 - **Two-finger panning.** On a zoomed image, two fingers on the trackpad move the image in every direction, like a map. This includes stacks and multichannel images: while the image is zoomed in, two fingers pan, and **Option + two fingers** change the slice or channel. When the whole image is visible (nothing to pan), up and down change the slice or channel as in ImageJ (as *Edit ▸ Options ▸ Misc.* decides).
-- **Smooth zoom: Ctrl + two fingers.** Any zoom, not only ImageJ's steps; the image point under the pointer stays under it, and the window keeps its size. ImageJ draws every frame, including selections and overlays. The canvas keeps its fitted area throughout: it does not grow into empty window space. There is no delayed handover or animation when scrolling stops. Magnification changes continuously; positioning uses ImageJ’s whole image pixels (at high magnification this can move a feature by up to one image pixel between wheel events). Zooming out stops at the scale that covers the current canvas. Shift + scroll keeps ImageJ's own zoom steps.
+- **Smooth zoom: Ctrl + two fingers.** Magnification and view position change continuously around the pointer. The view retains its fractional image-pixel position after scrolling stops: there is no timed handover, rounding step or finishing animation. The image canvas stays in its fitted area, including during an unchanged-window layout. ImageJ’s selection and overlay drawing uses the same fractional coordinate mapping. Zooming out stops at the scale that covers the current canvas. Genuine window resizing and explicit Fit/Fill commands still apply their requested new view. Shift + scroll keeps ImageJ’s own zoom steps.
 - **When an image window is resized** (dragging an edge or a corner), the image can:
   - **keep the zoom**: ImageJ's behaviour, more or less of the image shows (default);
   - **fill the window**: the image scales so that it covers the window, keeping the top-left corner of the visible part; for example a window as wide as the screen shows the image across the whole width, and two fingers pan through the part that does not fit. Placements (layouts and snap zones) then fill their zone too, from the image's top-left corner;
@@ -475,7 +475,7 @@ Everything below was tested on this Mac (Fiji 2.18.0 / ImageJ 1.54p, Java 21, ma
 - On the 14-inch screen there is not enough room for every tool at once. B&C, Threshold and Channels cascade in one slot and can overlap a neighbouring window (Threshold is 303 px wide).
 - A window moved to another display and back can end a few pixels from where it started (it is clamped to stay on screen). Delete (restore) returns it exactly.
 - Snapping or rearranging re-zooms images (fit, steps or fill); it does not keep a zoom you set by hand.
-- Smooth zoom uses ImageJ’s native whole-pixel positioning. It avoids an end-of-gesture jump, but does not provide fractional image-pixel translation at high magnification.
+- Fractional zoom is applied to standard ImageJ image canvases. Specialized viewers with their own canvas or layout keep their own zoom handling. Native image operations that read the source rectangle directly still see ImageJ’s integer compatibility rectangle; standard mouse tools use the fractional coordinate-conversion methods. The adapter uses ImageJ internals for native overlay drawing and is verified with ImageJ 1.54p; other runtimes require validation.
 - A resize that starts on a window edge covered by the Side Toolbar's bottom bar does not start: grab the edge above the bar.
 - Fixed-size tools (B&C, Threshold, Channels) cannot be stretched: if their zone is larger than they are, some desktop shows around them.
 - Custom layouts store one rectangle per kind of window, not per individual window.
@@ -501,6 +501,6 @@ MIT License, © 2026 Ettore Colombo. See [LICENSE](LICENSE).
 
 ## Development candidate
 
-This working copy contains the 1.0.7-dev1 zoom candidate. It keeps the fixed fitted canvas from the uncommitted 1.0.6 revision and uses native drawing throughout each gesture. Real trackpad acceptance remains necessary.
+Version 1.0.8-dev1 replaces the earlier native-only zoom experiment with a persistent fractional viewport. It retains the fixed image canvas, keeps native mouse tools and overlay drawing, prevents unchanged-window layout from growing the canvas, and cancels an obsolete placement retry when a later gesture supersedes it. Real-trackpad acceptance remains necessary.
 
-`./build.sh` builds locally without installing; `./build.sh /path/to/Fiji --install` installs explicitly (close Fiji first). `./test.sh` runs layout checks and native-canvas zoom regression checks.
+`./build.sh` builds locally without installing. `./test.sh` runs the existing layout and zoom boundary checks; `./test-integration.sh` checks wheel dispatch, fractional drawing, native tools, three-channel stacks and Fit/Fill interactions in a separate ImageJ with isolated preferences. `./test-combined.sh` checks the installed Undo History together with the new canvas. Use `./build.sh /path/to/Fiji --install` only with that Fiji closed.

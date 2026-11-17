@@ -60,7 +60,9 @@ final class Pan implements MouseWheelListener {
 	static final long ZOOM_TAIL_MS = 150;
 
 	private long lastZoomAt;
-	private final ZoomView zoomView = new ZoomView();
+	private static final java.util.Map<ImageWindow, Long> inputRevisions = new java.util.WeakHashMap<>();
+	static long inputRevision(ImageWindow window) { return inputRevisions.getOrDefault(window, 0L); }
+	static void noteInput(ImageWindow window) { inputRevisions.put(window, inputRevision(window) + 1); }
 
 	/** Pans (or, with Ctrl, zooms) the image for this event; false leaves the event to ImageJ. */
 	boolean handle(MouseWheelEvent e) {
@@ -97,6 +99,11 @@ final class Pan implements MouseWheelListener {
 		// when the whole image is visible both ways)
 		if (!canMove) return src.width < iw || src.height < ih;
 		double pixels = e.getPreciseWheelRotation() * POINTS_PER_UNIT / ic.getMagnification();
+		if (ic instanceof SmoothCanvas) {
+			noteInput(win);
+			((SmoothCanvas)ic).pan(sideways ? pixels : 0, sideways ? 0 : pixels);
+			return true;
+		}
 		if (sideways) {
 			restX += pixels;
 			int dx = (int) restX;
@@ -115,14 +122,17 @@ final class Pan implements MouseWheelListener {
 		return true;
 	}
 
-	/** Continuous magnification using ImageJ's renderer for both moving and resting views. */
+	/** Continuous magnification with a persistent fractional viewport and native tool/overlay drawing. */
 	boolean zoom(MouseWheelEvent e) {
 		if (e.isShiftDown()) return true;
 		ImageCanvas ic = win.getCanvas();
 		ImagePlus imp = win.getImagePlus();
 		if (ic == null || imp == null || win instanceof ij.gui.PlotWindow) return false;
 		java.awt.Point p = javax.swing.SwingUtilities.convertPoint(e.getComponent(), e.getPoint(), ic);
-		zoomView.zoom(ic, imp, Math.exp(-e.getPreciseWheelRotation() * ZOOM_RATE), p.x, p.y);
+		SmoothCanvas canvas = SmoothCanvas.install(win);
+		if (canvas == null) return false;
+		noteInput(win);
+		canvas.zoom(Math.exp(-e.getPreciseWheelRotation() * ZOOM_RATE), p.x, p.y);
 		Follow.noteZoom(win);
 		return true;
 	}
@@ -132,42 +142,4 @@ final class Pan implements MouseWheelListener {
 		return max <= 0 ? max / 2 : Math.max(0, Math.min(max, v));
 	}
 
-	/**
-	 * Retains fractional cursor anchoring between wheel events, but publishes a native ImageJ view on every event.
-	 * There is deliberately no preview, timer, delayed rounding, canvas resize or end-of-gesture animation.
-	 * Native drawing also keeps selections, overlays and the zoom indicator visible and aligned throughout.
-	 */
-	static final class ZoomView {
-		private double mag, x, y;
-		private Rectangle lastSrc;
-		private double lastMag;
-		private int lastWidth, lastHeight, lastImageWidth, lastImageHeight;
-
-		void zoom(ImageCanvas ic, ImagePlus imp, double factor, double px, double py) {
-			int iw = imp.getWidth(), ih = imp.getHeight(), cw = ic.getWidth(), ch = ic.getHeight();
-			if (cw <= 0 || ch <= 0 || !Double.isFinite(factor) || factor <= 0) return;
-			Rectangle src = ic.getSrcRect();
-			// Panning, a menu zoom, a layout or image-size change invalidates the previous fractional anchor.
-			if (lastSrc == null || !src.equals(lastSrc) || ic.getMagnification() != lastMag
-					|| cw != lastWidth || ch != lastHeight || iw != lastImageWidth || ih != lastImageHeight) {
-				x = src.x; y = src.y; mag = ic.getMagnification();
-			}
-			double minimum = Math.max(cw / (double) iw, ch / (double) ih);
-			double next = Math.max(Math.min(minimum, mag), Math.min(MAX_MAG, mag * factor));
-			px = Math.max(0, Math.min(cw, px)); py = Math.max(0, Math.min(ch, py));
-			x = clamp(x + px / mag - px / next, iw - cw / next);
-			y = clamp(y + py / mag - py / next, ih - ch / next);
-			mag = next;
-			// Cover the canvas, including its final fractional image pixel. Never resize its fitted area.
-			int sw = Math.max(1, (int) Math.min(iw, Math.ceil(cw / mag)));
-			int sh = Math.max(1, (int) Math.min(ih, Math.ceil(ch / mag)));
-			int sx = (int) Math.max(0, Math.min(iw - sw, Math.round(x)));
-			int sy = (int) Math.max(0, Math.min(ih - sh, Math.round(y)));
-			ic.setSourceRect(new Rectangle(sx, sy, sw, sh));
-			ic.setMagnification(mag); // setSourceRect derives a different zoom; restore the intended continuous zoom
-			lastSrc = new Rectangle(ic.getSrcRect()); lastMag = ic.getMagnification();
-			lastWidth = cw; lastHeight = ch; lastImageWidth = iw; lastImageHeight = ih;
-			ic.repaint();
-		}
-	}
 }
