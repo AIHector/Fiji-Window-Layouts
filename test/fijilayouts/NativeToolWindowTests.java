@@ -12,7 +12,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 
-/** Actual Analyze > Histogram with all three plugins: native controls and data-image boundaries. */
+/** Third-party native HistogramWindow compatibility with all three plugins. The menu tool has its own suite. */
 public final class NativeToolWindowTests {
     static int passed;
     static Object undo;
@@ -80,12 +80,13 @@ public final class NativeToolWindowTests {
             for (int i = 0; i < pixels.getPixelCount(); i++) pixels.set(i, i % 61);
             ImagePlus source = new ImagePlus("Histogram is also a valid image title", pixels);
             source.show(); pause(700);
+            waitFor(() -> { try { return history(source) != null && shelf("images").contains(source); } catch (Exception ex) { return false; } });
             check(ImageWindows.isDataWindow(source.getWindow()) && Engine.visibleImages().contains(source), "ordinary image is managed regardless of title");
             check(history(source) != null && shelf("images").contains(source), "ordinary image retains history and shelf");
             Rectangle sourceBounds = source.getWindow().getBounds();
-            IJ.run(source, "Histogram", "");
-            check(WindowManager.getCurrentImage().getWindow() instanceof HistogramWindow, "menu command opens native HistogramWindow");
+            new ij.plugin.Histogram().run("");
             HistogramWindow histogram = (HistogramWindow) WindowManager.getCurrentImage().getWindow();
+            check(WindowManager.getCurrentImage().getWindow() instanceof HistogramWindow, "direct native HistogramWindow API remains compatible");
             Dimension size = histogram.getSize();
             ImageCanvas canvas = histogram.getCanvas();
             Rectangle rect = new Rectangle(canvas.getSrcRect());
@@ -129,7 +130,7 @@ public final class NativeToolWindowTests {
             check(table && histogram.getResultsTable().size() == 256, "List opens native 256-bin table");
             click(histogram, "live");
             check(field(histogram, "srcImp") == source, "Live binds to original data image");
-            pixels.invert(); source.updateAndDraw();
+            source.getProcessor().invert(); source.updateAndDraw();
             waitFor(() -> {
                 try { return ((ImageStatistics) field(histogram, "stats")).mean > 190; }
                 catch (Exception ex) { return false; }

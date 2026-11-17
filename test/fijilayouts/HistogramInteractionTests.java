@@ -28,7 +28,9 @@ public final class HistogramInteractionTests {
     }
     static int[] pixels(HistogramWindow window){return ((int[])window.getImagePlus().getProcessor().getPixels()).clone();}
     static HistogramWindow histogram(ImagePlus source)throws Exception{
-        IJ.run(source,"Histogram","");HistogramWindow histogram=(HistogramWindow)WindowManager.getCurrentImage().getWindow();
+        WindowManager.setTempCurrentImage(source);
+        try { new ij.plugin.Histogram().run(""); } finally { WindowManager.setTempCurrentImage(null); }
+        HistogramWindow histogram=(HistogramWindow)WindowManager.getCurrentImage().getWindow();
         waitFor(()->HistogramInteraction.binding(histogram)!=null);return histogram;
     }
     static HistogramInteraction.Sample sample(HistogramWindow window){return HistogramInteraction.binding(window).last;}

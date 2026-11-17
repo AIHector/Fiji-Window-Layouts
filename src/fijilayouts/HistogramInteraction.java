@@ -44,6 +44,7 @@ final class HistogramInteraction implements ImageListener {
     }
     static boolean followsSource() { return Prefs.get(PREF,true); }
     static void start() {
+        HistogramToolCommand.install();
         if(started)return;started=true;ImagePlus.addImageListener(INSTANCE);
     }
     static void install(Window window) {
@@ -87,6 +88,7 @@ final class HistogramInteraction implements ImageListener {
     }
     /** Called from the shared event listener; it also sees a later SmoothCanvas without attaching to it. */
     static void onMotion(MouseEvent event) {
+        HistogramTool.onMotion(event);
         if(!followsSource()||bindings.isEmpty()||!(event.getSource() instanceof ImageCanvas))return;
         ImageCanvas canvas=(ImageCanvas)event.getSource();ImagePlus source=canvas.getImage();
         if(source==null||!ImageWindows.isDataWindow(source.getWindow()))return;

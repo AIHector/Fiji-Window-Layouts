@@ -15,9 +15,16 @@ public final class SmoothIntegrationTests {
     static int pass;
     static void check(boolean ok,String why){if(!ok)throw new AssertionError(why);pass++;}
     static int[] frame(ImageCanvas c) {
-        BufferedImage image=new BufferedImage(c.getWidth(),c.getHeight(),BufferedImage.TYPE_INT_RGB);
-        Graphics2D g=image.createGraphics();c.paint(g);g.dispose();
-        return image.getRGB(0,0,image.getWidth(),image.getHeight(),null,0,image.getWidth());
+        final int[][] result={null};
+        Runnable capture=()->{
+            BufferedImage image=new BufferedImage(c.getWidth(),c.getHeight(),BufferedImage.TYPE_INT_RGB);
+            Graphics2D g=image.createGraphics();c.paint(g);g.dispose();
+            result[0]=image.getRGB(0,0,image.getWidth(),image.getHeight(),null,0,image.getWidth());
+        };
+        // Component painting belongs to the UI thread. Concurrent off-thread captures raced its repaint buffer.
+        if(EventQueue.isDispatchThread())capture.run();
+        else try{EventQueue.invokeAndWait(capture);}catch(Exception ex){throw new RuntimeException(ex);}
+        return result[0];
     }
     static void wheel(ImageWindow win,double rotation,int x,int y) throws Exception {
         EventQueue.invokeAndWait(()->{
