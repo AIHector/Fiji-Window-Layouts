@@ -89,7 +89,7 @@ final class HistogramInteraction implements ImageListener {
     /** Called from the shared event listener; it also sees a later SmoothCanvas without attaching to it. */
     static void onMotion(MouseEvent event) {
         HistogramTool.onMotion(event);
-        if(!followsSource()||bindings.isEmpty()||!(event.getSource() instanceof ImageCanvas))return;
+        if(bindings.isEmpty()||!followsSource()||!(event.getSource() instanceof ImageCanvas))return;
         ImageCanvas canvas=(ImageCanvas)event.getSource();ImagePlus source=canvas.getImage();
         if(source==null||!ImageWindows.isDataWindow(source.getWindow()))return;
         int x=canvas.offScreenX(event.getX()),y=canvas.offScreenY(event.getY());
@@ -112,10 +112,12 @@ final class HistogramInteraction implements ImageListener {
     }
     public void imageUpdated(ImagePlus image) {
         if(!followsSource())return;
-        SwingUtilities.invokeLater(()->{
-            for(Binding binding:bindings.values())if(binding.fromSource
-                    &&(binding.sourceID==image.getID()||binding.window.getImagePlus()==image))binding.queue();
-        });
+        if (SwingUtilities.isEventDispatchThread()) queueChangedSource(image);
+        else SwingUtilities.invokeLater(() -> queueChangedSource(image));
+    }
+    private void queueChangedSource(ImagePlus image) {
+        for(Binding binding:bindings.values())if(binding.fromSource
+                &&(binding.sourceID==image.getID()||binding.window.getImagePlus()==image))binding.queue();
     }
     static Binding binding(HistogramWindow window) { return bindings.get(window); }
     static final class Sample {

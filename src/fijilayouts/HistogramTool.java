@@ -68,13 +68,15 @@ final class HistogramTool extends PlugInFrame implements ImageListener, RoiListe
             following.bindSource(((ij.gui.ImageWindow) window).getImagePlus());
     }
 
-    ImagePlus source;
+    volatile ImagePlus source;
     int sourceID;
     HistogramToolCommand.Options options;
     final boolean followsSelection;
     private int generation;
     private int sourceType;
     private final Timer selectionPoll = new Timer(150, event -> followCurrent());
+    private final java.util.concurrent.atomic.AtomicBoolean updateQueued = new java.util.concurrent.atomic.AtomicBoolean();
+    private final Timer updateTimer = new Timer(120, event -> updateAfterBurst());
     final JLabel sourceLabel = new JLabel(), readout = new JLabel("Value: —     Count: —"), status = new JLabel("Computing histogram…");
     final JCheckBox live = new JCheckBox("Live"), log = new JCheckBox("Log");
     final JButton refresh = new JButton("Refresh"), list = new JButton("List"), copy = new JButton("Copy"), channel = new JButton("RGB mode");
@@ -92,6 +94,7 @@ final class HistogramTool extends PlugInFrame implements ImageListener, RoiListe
     private HistogramTool(ImagePlus source, HistogramToolCommand.Options options, boolean followsSelection) {
         super(followsSelection ? "Histogram Tool" : "Histogram of " + source.getShortTitle());
         this.followsSelection = followsSelection;
+        updateTimer.setRepeats(false);
         this.source = source; this.sourceID = source == null ? 0 : source.getID(); this.options = options;
         sourceType = source == null ? -1 : source.getType();
         if (followsSelection) this.options = defaultOptions(source);
@@ -184,22 +187,29 @@ final class HistogramTool extends PlugInFrame implements ImageListener, RoiListe
         final ImagePlus current = source;
         final int requestedMode = mode;
         final int requestedGeneration = generation;
+        final boolean requestedLog = log.isSelected();
         final HistogramToolCommand.Options requestedOptions = options;
         status.setText("Updating source statistics…");
         worker = new SwingWorker<Model, Void>() {
-            protected Model doInBackground() throws Exception { return new Model(current, requestedOptions, requestedMode); }
+            protected Model doInBackground() throws Exception { return new Model(current, requestedOptions, requestedMode, requestedLog); }
             protected void done() {
                 worker = null;
                 try {
                     Model next = get();
                     if (disposed || source != current || generation != requestedGeneration || mode != requestedMode) { next.release(); return; }
-                    if (model != null) model.release(); model = next; model.render(log.isSelected());
-                    graph.setPreferredSize(new Dimension(model.raster.getWidth(), model.raster.getHeight()));
+                    if (model != null) model.release();
+                    model = next;
+                    if (requestedLog != log.isSelected()) model.render(log.isSelected());
+                    Dimension size = new Dimension(model.raster.getWidth(), model.raster.getHeight());
+                    if (!size.equals(graph.getPreferredSize())) {
+                        graph.setPreferredSize(size);
+                        pack();
+                    }
                     list.setEnabled(true); copy.setEnabled(true); log.setEnabled(true);
                     sourceLabel.setText("Source: " + current.getTitle());
                     status.setText(options.stack ? "Whole stack · snapshot" : live.isSelected() ? "Live · source pixels" : "Snapshot · Refresh to recalculate");
                     if (fromSource) inspectSource(sampleX, sampleY); else clearReadout();
-                    graph.revalidate(); pack(); graph.repaint();
+                    graph.repaint();
                 } catch (Exception ex) { if (!disposed && source == current && generation == requestedGeneration) { status.setText("Could not update histogram"); Engine.debug("Histogram tool: " + ex); } }
                 finally { if (dirty && !disposed) { dirty = false; requestUpdate(); } }
             }
@@ -208,13 +218,15 @@ final class HistogramTool extends PlugInFrame implements ImageListener, RoiListe
     }
     public void imageOpened(ImagePlus image) { if (followsSelection) EventQueue.invokeLater(this::followCurrent); }
     public void imageUpdated(ImagePlus image) {
-        if (image != source) return;
-        EventQueue.invokeLater(() -> {
-            if (disposed || image != source) return;
-            if (followsSelection && image.getType() != sourceType) { bindSource(image); return; }
-            if (live.isSelected()) requestUpdate();
-            else if (fromSource && HistogramInteraction.followsSource()) inspectSource(sampleX, sampleY);
-        });
+        if (image != source || !updateQueued.compareAndSet(false, true)) return;
+        EventQueue.invokeLater(() -> { if (!disposed) updateTimer.start(); });
+    }
+    private void updateAfterBurst() {
+        updateQueued.set(false);
+        if (disposed || source == null) return;
+        if (followsSelection && source.getType() != sourceType) bindSource(source);
+        else if (live.isSelected()) requestUpdate();
+        else if (fromSource && HistogramInteraction.followsSource()) inspectSource(sampleX, sampleY);
     }
     public void roiModified(ImagePlus image, int id) { imageUpdated(image); }
     public void imageClosed(ImagePlus image) {
@@ -231,14 +243,14 @@ final class HistogramTool extends PlugInFrame implements ImageListener, RoiListe
     public void close() {
         if (disposed) return;
         disposed = true; tools.remove(this); ImagePlus.removeImageListener(this); Roi.removeRoiListener(this);
-        selectionPoll.stop(); if (following == this) following = null;
+        selectionPoll.stop(); updateTimer.stop(); if (following == this) following = null;
         if (worker != null) worker.cancel(true);
         if (model != null) model.release(); model = null; source = null;
         super.close();
     }
 
     static void onMotion(MouseEvent event) {
-        if (!HistogramInteraction.followsSource() || !(event.getSource() instanceof ImageCanvas)) return;
+        if (tools.isEmpty() || !HistogramInteraction.followsSource() || !(event.getSource() instanceof ImageCanvas)) return;
         ImageCanvas canvas = (ImageCanvas) event.getSource(); ImagePlus image = canvas.getImage();
         if (image == null || !ImageWindows.isDataWindow(image.getWindow()) || event.getX() < 0 || event.getY() < 0
                 || event.getX() >= canvas.getWidth() || event.getY() >= canvas.getHeight()) return;
@@ -261,6 +273,7 @@ final class HistogramTool extends PlugInFrame implements ImageListener, RoiListe
     }
     private void clearReadout() { fromSource = false; showReadout(Double.NaN, -1); }
     private void showReadout(double value, long count) {
+        if (Double.compare(sampledValue, value) == 0 && sampledCount == count) return;
         sampledValue = value; sampledCount = count;
         readout.setText("Value: " + (Double.isFinite(value) ? IJ.d2s(value, value == Math.rint(value) ? 0 : 4) : "—")
                 + "     Count: " + (count >= 0 ? Long.toString(count) : "—"));
@@ -293,7 +306,7 @@ final class HistogramTool extends PlugInFrame implements ImageListener, RoiListe
         final Rectangle plotBounds;
         final int mode;
         BufferedImage raster;
-        Model(ImagePlus source, HistogramToolCommand.Options options, int mode) throws Exception {
+        Model(ImagePlus source, HistogramToolCommand.Options options, int mode, boolean logarithmic) throws Exception {
             this.mode = mode;
             ImageProcessor raw = source.getProcessor().duplicate();
             // Display contrast belongs to the source view, never to histogram plot colours or bin ranges.
@@ -307,13 +320,16 @@ final class HistogramTool extends PlugInFrame implements ImageListener, RoiListe
             double threshold = source.getProcessor().getMinThreshold();
             if (threshold != ImageProcessor.NO_THRESHOLD) raw.setThreshold(threshold, source.getProcessor().getMaxThreshold(), source.getProcessor().getLutUpdateMode());
             RGB.setInt(plot, mode);
+            LOG.setBoolean(plot, logarithmic);
             // StackStatistics reads the source stack; the drawing view owns only a duplicate of its current plane.
             if (options.stack || ((source.getBitDepth() == 8 || source.isRGB()) && (options.bins != 256 || options.min != 0 || options.max != 0 || options.yMax > 0))) {
                 ImageStatistics stats = new StackStatistics(options.stack ? source : view, options.bins, options.min, options.max);
                 stats.histYMax = options.yMax; plot.draw(view, stats);
             } else plot.draw(view, options.bins, options.min, options.max, options.yMax);
             stats = (ImageStatistics) STATS.get(plot); counts = ((long[]) COUNTS.get(plot)).clone();
-            calibration = view.getCalibration().copy(); plotBounds = new Rectangle((Rectangle) FRAME.get(plot)); render(false);
+            calibration = view.getCalibration().copy();
+            plotBounds = new Rectangle((Rectangle) FRAME.get(plot));
+            raster = plot.getProcessor().getBufferedImage();
         }
         void render(boolean logarithmic) {
             try { LOG.setBoolean(plot, logarithmic); plot.draw(view, stats); raster = plot.getProcessor().getBufferedImage(); }
