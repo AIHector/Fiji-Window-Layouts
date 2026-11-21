@@ -603,7 +603,8 @@ final class Engine {
 
 	/** The layout that slot n really applies: layout 6 behaves like layout 2 on a single display. */
 	static Layout effective(int n) {
-		return fallsBack(n, devices().length) ? BUILTIN[1] : layout(n);
+		Layout selected = layout(n);
+		return n == 6 && selected == BUILTIN[5] && devices().length < 2 ? BUILTIN[1] : selected;
 	}
 
 	/** The built-in layout 6 (tools on a second display) behaves like layout 2 on one display. */
@@ -707,11 +708,17 @@ final class Engine {
 
 	/** When another managed tool window already sits at (x,y), cascade down-right so both stay visible. */
 	static Point freeSpot(Window self, int x, int y) {
+		Window[] windows = Window.getWindows();
 		for (int i = 0; i < 8; i++) {
 			boolean taken = false;
-			for (Window o : Window.getWindows()) {
-				if (o == self || o instanceof ImageWindow || classify(o) == null || classify(o) == Group.TOOLBAR) continue;
-				if (Math.abs(o.getX() - x) < 4 && Math.abs(o.getY() - y) < 4) { taken = true; break; }
+			for (Window other : windows) {
+				if (other == self || other instanceof ImageWindow) continue;
+				if (Math.abs(other.getX() - x) >= 4 || Math.abs(other.getY() - y) >= 4) continue;
+				Group group = classify(other);
+				if (group != null && group != Group.TOOLBAR) {
+					taken = true;
+					break;
+				}
 			}
 			if (!taken) break;
 			x += CASCADE; y += CASCADE;
