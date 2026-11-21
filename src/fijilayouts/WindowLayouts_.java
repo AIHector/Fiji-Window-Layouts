@@ -1212,6 +1212,7 @@ final class Engine {
 
 	/** The key code of a shortcut being held: its typed and released events are kept from ImageJ too. */
 	private static int heldShortcut = -1;
+	private static boolean heldChannelShortcut;
 
 	/** Handles a shortcut; true when the key was used (it then goes to no window). */
 	static boolean onKey(KeyEvent e) {
@@ -1223,14 +1224,33 @@ final class Engine {
 		if (e.getID() == KeyEvent.KEY_RELEASED) {
 			if (e.getKeyCode() != heldShortcut) return false;
 			heldShortcut = -1;
+			heldChannelShortcut = false;
 			return true;
 		}
-		if (e.getID() != KeyEvent.KEY_PRESSED || e.isConsumed() || !modifierMatches(e)) return false;
+		if (e.getID() != KeyEvent.KEY_PRESSED || e.isConsumed()) return false;
+		int channel = ChannelVisibility.shortcutChannel(e);
+		if (channel >= 0 && !focusInText()) {
+			ij.CompositeImage target = ChannelVisibility.shortcutTarget(e);
+			if (target != null && channel <= Math.min(target.getNChannels(), target.getActiveChannels().length)) {
+				e.consume();
+				if (!heldChannelShortcut || heldShortcut != e.getKeyCode()) {
+					heldShortcut = e.getKeyCode();
+					heldChannelShortcut = true;
+					SwingUtilities.invokeLater(() -> {
+						if (WindowManager.getCurrentImage() == target && ChannelVisibility.supports(target))
+							ChannelVisibility.toggle(target, channel);
+					});
+				}
+				return true;
+			}
+		}
+		if (!modifierMatches(e)) return false;
 		if (altGrInText(IJ.isMacOSX(), e.isControlDown(), e.isAltDown(), focusInText())) return false;
 		final String action = actionFor(e.getKeyCode());
 		if (action == null) return false;
 		e.consume();
 		heldShortcut = e.getKeyCode();
+		heldChannelShortcut = false;
 		// run after the key event, as the AWTEventListener did (snapping inside the dispatcher can deadlock focus)
 		SwingUtilities.invokeLater(new Runnable() { public void run() { runAction(action); } });
 		return true;
@@ -1539,6 +1559,10 @@ final class Engine {
 		gd.addCheckbox("In stacks, two fingers pan a zoomed image (Option + two fingers change the slice)", Pan.stackPan());
 		gd.addCheckbox("Write a key log to ~/fijilayouts-debug.log (troubleshooting)", debugEnabled());
 		gd.addCheckbox("Histogram Value/Count follows the pointer in its source image", HistogramInteraction.followsSource());
+		if (IJ.isMacOSX()) {
+			gd.addCheckbox("Composite channels with Control + Command + number", Prefs.get(ChannelVisibility.KEYS_PREF, true));
+			gd.addCheckbox("Cycle composite channels with Command + two-finger scroll", Prefs.get(ChannelVisibility.SCROLL_PREF, true));
+		}
 		gd.addMessage("Image zoom: fill = the image covers its whole area (edges may be cropped; pan with the hand tool),\n"
 			+ "fit = the whole image, as large as fits; steps = the whole image at ImageJ's standard zooms.\n"
 			+ "Two-finger panning moves a zoomed image in every direction; Ctrl + scroll zooms smoothly around the\n"
@@ -1558,6 +1582,10 @@ final class Engine {
 		Prefs.set("fijilayouts.stackpan", gd.getNextBoolean());
 		Prefs.set("fijilayouts.debug", gd.getNextBoolean());
 		Prefs.set(HistogramInteraction.PREF, gd.getNextBoolean());
+		if (IJ.isMacOSX()) {
+			Prefs.set(ChannelVisibility.KEYS_PREF, gd.getNextBoolean());
+			Prefs.set(ChannelVisibility.SCROLL_PREF, gd.getNextBoolean());
+		}
 		Follow.setMode(follow);
 		persist();
 		IJ.showStatus("Window Layouts: shortcuts now use " + modifier());
@@ -1582,7 +1610,11 @@ final class Engine {
 			+ "<tr><td><b>X</b></td><td>switch images between Fill the Window and Fit the Whole Image (applies to the active image at once)</td></tr>"
 			+ "<tr><td><b>C</b></td><td>center, <b>Return</b> maximize, <b>Delete</b> restore</td></tr>"
 			+ "<tr><td><b>N</b> / <b>P</b></td><td>move to next / previous display (also ] / [)</td></tr>"
-			+ "</table><br>Active layout: " + activeLayout() + ". Automatic placement: " + (autoEnabled() ? "on" : "off") + ".<br>"
+			+ "</table>"
+			+ (IJ.isMacOSX() ? "<br><b>Composite channels</b><br>"
+				+ "Control + Command + 1–8 toggles one channel. Control + Command + 0 shows all.<br>"
+				+ "Command + vertical two-finger scroll over the image cycles single channels and all channels.<br>" : "")
+			+ "<br>Active layout: " + activeLayout() + ". Automatic placement: " + (autoEnabled() ? "on" : "off") + ".<br>"
 			+ "Menus: Plugins &gt; Window Layouts. Full guide: FijiWindowLayouts/README.md</body></html>";
 		new HTMLDialog("Window Layouts shortcuts", html, false);
 	}

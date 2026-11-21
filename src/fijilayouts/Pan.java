@@ -23,6 +23,7 @@ final class Pan implements MouseWheelListener {
 
 	final ImageWindow win;
 	final MouseWheelListener imagej;
+	private final ChannelVisibility channelGesture = new ChannelVisibility();
 	private double restX, restY; // movement smaller than one image pixel, kept for the next event
 
 	Pan(ImageWindow win, MouseWheelListener imagej) {
@@ -68,6 +69,7 @@ final class Pan implements MouseWheelListener {
 	/** Pans (or, with Ctrl, zooms) the image for this event; false leaves the event to ImageJ. */
 	boolean handle(MouseWheelEvent e) {
 		if (!ImageWindows.isDataWindow(win)) return false;
+		if (channelGesture.scroll(win, e)) return true;
 		boolean ctrl = (e.getModifiers() & InputEvent.CTRL_MASK) != 0;
 		long now = System.currentTimeMillis();
 		if (ctrl && smoothZoom() && !IJ.shiftKeyDown()) {
